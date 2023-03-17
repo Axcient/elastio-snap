@@ -34,7 +34,7 @@ pipeline
 					steps
 					{
 						sh "bash ./build.sh ${env.BUILD_NUMBER} rpm"
-						deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('oopta'), user: "rbrepo", agent: "agent"
+						deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('ootpa'), user: "rbrepo", agent: "agent"
 					}
 				}
 			}
@@ -53,7 +53,7 @@ def pkg_map_branches(String repo)
 {
     return [
 	'^master$': repo,
-	'^staging.*': repo + '-stg',
+	'^develop.*': repo + '-stg',
 	'^develop$': repo + '-dev',
 	]
 }
