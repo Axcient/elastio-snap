@@ -7,7 +7,8 @@ RUN apt-get update && \
 	apt-get install -y wget \
 		build-essential \
 		rsync \
-		pax
+		pax \
+		sudo
 
 RUN wget https://github.com/debbuild/debbuild/archive/20.04.0.tar.gz && \
 	tar -zxvf 20.04.0.tar.gz && \
@@ -18,7 +19,11 @@ RUN wget https://github.com/debbuild/debbuild/archive/20.04.0.tar.gz && \
 	cd / && \
 	rm -r debbuild-20.04.0 20.04.0.tar.gz
 
-RUN addgroup --gid $GROUP_ID user && adduser --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID user
+RUN addgroup --gid $GROUP_ID user && \
+	adduser --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID user && \
+	adduser user sudo && \
+	echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
 USER user
 
 COPY --chown=user:user . /build_dir
