@@ -6,6 +6,9 @@
 # Location to install kernel module sources
 %global _kmod_src_root %{_usrsrc}/%{name}-%{version}
 
+# Location for systemd shutdown script
+%global _systemd_shutdown /lib/systemd/system-shutdown
+
 # All sane distributions use dracut now, so here are dracut paths for it
 %if 0%{?rhel} > 0 && 0%{?rhel} < 7
 %global _dracut_modules_root %{_datadir}/dracut/modules.d
@@ -106,7 +109,7 @@
 
 
 Name:            elastio-snap
-Version:         0.12.0
+Version:         0.12.2
 Release:         %{_release}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -221,7 +224,7 @@ BuildArch:       noarch
 %endif
 
 %if 0%{?debian}
-%if ( "%{_arch}" != "x86_64" && "%{_arch}" != "amd64" ) && ( %{debian} == 11 )
+%if ( "%{_arch}" != "x86_64" && "%{_arch}" != "amd64" ) && ( %{debian} >= 11 )
 
 # By default, on arm64, Debian 11 is provided with the kernel with
 # some symbols absent AND with without a System.map file. This makes
@@ -230,6 +233,9 @@ BuildArch:       noarch
 # As a compromise solution, we install linux-image-$(uname -r)-dbg
 # to make it work properly. This package adds System.map and makes
 # it possible to fetch the address of the system call table
+#
+# It is also true for Debian12, but it needs to be checked for Debian13
+# when it is released
 #
 # Please refer to https://github.com/elastio/devboxes/pull/230
 Requires:        linux-image-%(uname -r)-dbg
@@ -309,6 +315,9 @@ automatically build and install for each kernel.
 export CFLAGS="%{optflags}"
 make application
 make utils
+# Not needs to be installed: we expect the
+# user to generate it during the build
+rm -f src/kernel-config.h
 
 
 %install
@@ -397,6 +406,10 @@ install -m 755 dist/initramfs/dracut/install %{buildroot}%{_dracut_modules_root}
 %endif
 %endif
 %endif
+
+# Install systemd shutdown script
+mkdir -p %{buildroot}%{_systemd_shutdown}
+install -m 755 dist/system-shutdown/umount_rootfs.shutdown %{buildroot}%{_systemd_shutdown}/umount_rootfs.shutdown
 
 # Get rid of git artifacts
 find %{buildroot} -name "*.git*" -print0 | xargs -0 rm -rfv
@@ -514,6 +527,9 @@ rm -rf %{buildroot}
 %endif
 %endif
 %endif
+# Install systemd shutdown script
+%{_systemd_shutdown}/umount_rootfs.shutdown
+
 %doc README.md doc/STRUCTURE.md
 %if "%{_vendor}" == "redhat"
 %{!?_licensedir:%global license %doc}
@@ -581,6 +597,7 @@ rm -rf %{buildroot}
 %{_kmod_src_root}/dkms.conf
 %{_kmod_src_root}/genconfig.sh
 %{_kmod_src_root}/includes.h
+%exclude %dir %{_kmod_src_root}/configure-tests/feature-tests/build
 %if 0%{?rhel} == 5 || (0%{?suse_version} && 0%{?suse_version} < 1315) || (0%{?fedora} && 0%{?fedora} < 23)
 %dir %{_sysconfdir}/kernel/postinst.d
 %{_sysconfdir}/kernel/postinst.d/50-elastio-snap
@@ -599,6 +616,26 @@ rm -rf %{buildroot}
 
 
 %changelog
+
+* Fri Apr 7 2023 Stanislav Barantsev <sbarantsev@elastio.com> - 0.12.2
+- Flush bio requests before module unload
+- Add default bio path if orig mrf is not found
+- Implement direct read/write IO
+- Add retry logic on elastio_snap_destroy
+- Fix issue with cow file lock
+- Add tests to cover the immutable cow file functionality
+- Tests and behaviour for redirected cow file
+- Added support of Amazon Linux 2023
+- Fix for the Linux Kernel v6.2 (Fedora 37/38)
+- Fix cow file size in /proc/elastio-snap-info
+- Create cow file precisely according to the user setting
+
+* Wed Jan 4 2023 Stanislav Barantsev <sbarantsev@elastio.com> - 0.12.1
+- Fixed module compilation on Linux 6.0.14 for complete Fedora 37 support
+- Implemented 6.0.X Linux kernel support
+
+* Wed Dec 23 2022 Konstantin Germanov <kgermanov@axcient.com>
+- Added sytemd shutdown script for consistency of the rootfs in snapshots
 
 * Wed Dec 21 2022 Eugene Kovalenko <ikovalenko@elastio.com> - 0.12.0
 - Simplified error handling, got rid of sd_memory_fail_code and sd_cow_fail_state snapshot struct members

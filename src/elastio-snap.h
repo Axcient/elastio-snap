@@ -16,7 +16,7 @@
 #include <linux/ioctl.h>
 #include <linux/limits.h>
 
-#define ELASTIO_SNAP_VERSION "0.12.0"
+#define ELASTIO_SNAP_VERSION "0.12.2"
 #define ELASTIO_IOCTL_MAGIC 'A' // 0x41
 
 struct setup_params{
@@ -83,6 +83,7 @@ struct cow_header{
 
 struct elastio_snap_info{
 	unsigned int minor;
+	unsigned int flags;
 	unsigned long state;
 	int error;
 	unsigned long cache_size;

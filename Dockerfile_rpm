@@ -13,9 +13,14 @@ RUN yum install -y epel-release
 RUN yum install -y kernel-debug-devel \
 		dkms \
 		rpm-build \
-		rsync
+		rsync \
+		sudo
 
-RUN groupadd -f --gid $GROUP_ID user && adduser --uid $USER_ID --gid $GROUP_ID user
+RUN groupadd -f --gid $GROUP_ID user && \
+	adduser --uid $USER_ID --gid $GROUP_ID user && \
+	usermod -aG wheel user && \
+	echo '%wheel ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
 USER user
 
 COPY --chown=user:user . /build_dir
