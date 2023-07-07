@@ -1936,20 +1936,14 @@ static inline ssize_t elastio_snap_kernel_read(struct cow_manager *cm, void *buf
 		//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
 		mm_segment_t old_fs;
 
-		file_unlock(cm->filp);
-
 		old_fs = get_fs();
 		set_fs(get_ds());
 		ret = vfs_read(cm->filp, (char __user *)buf, count, pos);
 		set_fs(old_fs);
 
-		file_lock(cm->filp);
-
 		return ret;
 #else
-		file_unlock(cm->filp);
 		ret = kernel_read(cm->filp, buf, count, pos);
-		file_lock(cm->filp);
 		return ret;
 #endif
 	} else {
@@ -1971,20 +1965,15 @@ static inline ssize_t elastio_snap_kernel_write(struct cow_manager *cm, void *bu
 		//#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
 		mm_segment_t old_fs;
 
-		file_unlock(cm->filp);
-
 		old_fs = get_fs();
 		set_fs(get_ds());
 
 		ret = vfs_write(cm->filp, (__force const char __user *)buf, count, pos);
 		set_fs(old_fs);
 
-		file_lock(cm->filp);
 		return ret;
 #else
-		file_unlock(cm->filp);
 		ret = kernel_write(cm->filp, buf, count, pos);
-		file_lock(cm->filp);
 		return ret;
 #endif
 	} else {
@@ -2091,12 +2080,10 @@ static int file_truncate(struct file *filp, loff_t len){
 		goto error;
 	}
 
-	file_lock(filp);
 	return 0;
 
 error:
 	LOG_ERROR(ret, "error truncating file");
-	file_lock(filp);
 	return ret;
 }
 
@@ -2187,7 +2174,6 @@ static int file_allocate(struct cow_manager *cm, struct file *f, uint64_t offset
 	}
 
 out:
-	file_lock(f);
 
 	if(page_buf) free_page((unsigned long)page_buf);
 	if(abs_path) kfree(abs_path);
