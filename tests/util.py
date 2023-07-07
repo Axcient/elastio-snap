@@ -24,7 +24,7 @@ def unmount(path, retry_on_dev_busy=True):
     cmd = ["umount", path]
     # subprocess.run is introduced in Python 3.5
     if not retry_on_dev_busy or sys.version_info <= (3, 5):
-        subprocess.check_call(cmd, timeout=10)
+        subprocess.check_call(cmd, timeout=20)
     else:
         # The retries on device busy error are necessary on Ubuntu 22.04, kernel 5.15
         # for the tests test_destroy_unverified_incremental and test_destroy_unverified_snapshot.
@@ -48,8 +48,7 @@ def dd(ifile, ofile, count, **kwargs):
     for k, v in kwargs.items():
         cmd.append("{}={}".format(k, v))
 
-    subprocess.check_call(cmd, timeout=30)
-
+    subprocess.check_call(cmd, timeout=240)
 
 def md5sum(path):
     md5 = hashlib.md5()
@@ -117,14 +116,43 @@ def mkfs(device, fs="ext4"):
     if (fs == "xfs"):
         cmd = ["mkfs.xfs", device, "-f"]
     else:
-        cmd = ["mkfs." + fs, "-F", device]
+        # Disable lazy init to facilitate that no additional IO will take place during tests
+        cmd = ["mkfs." + fs, "-F", "-E", "lazy_itable_init=0,lazy_journal_init=0", device]
 
     subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
 
+def xfs_repair_version():
+    cmd = ["xfs_repair", "-V"]
+    version = subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8").split(" ")[2]
+    return version
+
+def fsck(image, fs="ext4"):
+    if fs == 'xfs':
+        cmd = ["xfs_repair", "-n", "-v", image]
+    else:
+        cmd = ["fsck." + fs, "-n", "-f", "-v", image]
+
+    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+
+def update_img(device, cow_file, bkp):
+    cmd = ["../utils/update-img", device, cow_file, bkp]
+    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, timeout=180)
+
+def mktemp_dir():
+    cmd = ["mktemp", "-d"]
+    temp_dir = subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8")
+    return temp_dir
+
+def file_lines(file):
+    cmd = ["wc", "-l", file]
+    lines = int(subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8").split(" ")[0])
+    return lines
 
 def dev_size_mb(device):
     return int(subprocess.check_output("blockdev --getsize64 %s" % device, shell=True))//1024**2
 
+def dev_size_bytes(device):
+    return int(subprocess.check_output("blockdev --getsize64 %s" % device, shell=True))
 
 # This method finds names of the partitions of the disk
 def get_partitions(disk):
@@ -281,3 +309,32 @@ def disassemble_mirror_raid(raid_device, devices):
     time.sleep(1)
     for device in devices:
         mdadm_zero_superblock(get_last_partition(device))
+
+def kernel_warning_exists():
+    exceptions_str = [
+            # known issue on Fedora 32 (v5.9), related to the LVM driver
+            'blkdev_issue_discard'
+        ]
+
+    cmd = [ "dmesg", "-l", "warn" ]
+    output = subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8")
+
+    # kernel warning occurred
+    if 'Modules linked in:' in output:
+        for exception in exceptions_str:
+            if exception in output:
+                return False
+        return True
+
+    return False
+
+def test_track(test_name, started):
+    with open('/dev/kmsg', 'w') as f:
+        if (started == True):
+            f.write('<6>--- {} started ---'.format(test_name))
+        else:
+            f.write('<6>--- {} done. ---'.format(test_name))
+
+def os_page_size():
+    cmd = ["getconf", "PAGESIZE"]
+    return (int)(subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8"))
