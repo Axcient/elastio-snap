@@ -2346,7 +2346,7 @@ static int __cow_cleanup_mappings(struct cow_manager *cm){
 	}
 
 	//deallocate sections of the cm with less usage than the median
-	ret = __cow_sync_and_free_sections(cm, thresh, false);
+	ret = __cow_sync_and_free_sections(cm, thresh);
 	if(ret){
 		LOG_ERROR(ret, "error cleaning cow manager mappings");
 		return ret;
@@ -2469,7 +2469,7 @@ static void cow_free(struct cow_manager *cm){
 static int cow_sync_and_free(struct cow_manager *cm){
 	int ret;
 
-	ret = __cow_sync_and_free_sections(cm, 0, false);
+	ret = __cow_sync_and_free_sections(cm, 0);
 	if(ret) goto error;
 
 	ret = __cow_close_header(cm);
@@ -2677,7 +2677,7 @@ out:
 static int cow_sync_and_close(struct cow_manager *cm){
 	int ret;
 
-	ret = __cow_sync_and_free_sections(cm, 0, true);
+	ret = __cow_sync_and_free_sections(cm, 0);
 	if(ret) goto error;
 
 	ret = __cow_close_header(cm);
