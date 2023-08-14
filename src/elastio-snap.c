@@ -2163,8 +2163,6 @@ static int file_allocate(struct cow_manager *cm, struct file *f, uint64_t offset
 		if(ret) goto error;
 	}
 
-	file_lock(f);
-
 	if(page_buf) free_page((unsigned long)page_buf);
 	if(abs_path) kfree(abs_path);
 
