@@ -41,7 +41,7 @@ pipeline
 						deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('ootpa'), user: "rbrepo", agent: "agent"
 						deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('maipo'), user: "rbrepo", agent: "agent"
 						deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('plow'), user: "rbrepo", agent: "agent"
-						uploadArtifacts files: "build-results_rpm/*.rpm", dst: "${artifactoryRoot}", postfix: "DEB", shortnames: true, retention : false
+						uploadArtifacts files: "build-results_rpm/*.rpm", dst: "${artifactoryRoot}", postfix: "RPM", shortnames: true, retention : false
 					}
 				}
 			}
