@@ -1,6 +1,7 @@
 #!groovy
 
 @Library('jenkins-utils-lib') _
+def artifactoryRoot = "replibit/elastio/"
 
 pipeline
 {
@@ -29,6 +30,7 @@ pipeline
 						deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bionic-agent'), user: "rbrepo", agent: "rep-agent"
 						deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bullseye-agent'), user: "rbrepo", agent: "rep-agent"
 						deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('buster-agent'), user: "rbrepo", agent: "rep-agent"
+						uploadArtifacts files: "build-results_deb/*.deb", dst: "${artifactoryRoot}", postfix: "DEB", shortnames: true, retention : false
 					}
 				}
 				stage('RPM')
@@ -39,6 +41,7 @@ pipeline
 						deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('ootpa'), user: "rbrepo", agent: "agent"
 						deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('maipo'), user: "rbrepo", agent: "agent"
 						deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('plow'), user: "rbrepo", agent: "agent"
+						uploadArtifacts files: "build-results_rpm/*.rpm", dst: "${artifactoryRoot}", postfix: "RPM", shortnames: true, retention : false
 					}
 				}
 			}
