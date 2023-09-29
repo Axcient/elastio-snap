@@ -30,6 +30,7 @@ pipeline
 						deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bionic-agent'), user: "rbrepo", agent: "rep-agent"
 						deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bullseye-agent'), user: "rbrepo", agent: "rep-agent"
 						deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('buster-agent'), user: "rbrepo", agent: "rep-agent"
+						deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bookworm-agent'), user: "rbrepo", agent: "rep-agent"
 						uploadArtifacts files: "build-results_deb/*.deb", dst: "${artifactoryRoot}", postfix: "DEB", shortnames: true, retention : false
 					}
 				}
