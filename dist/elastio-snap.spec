@@ -424,10 +424,10 @@ if [ $1 -eq 0 ]; then
     if lsmod | grep -q $(echo %{name} | tr '-' '_') ; then
         modprobe -r %{name} || :
     fi
-fi
 
-if dkms status -m %{name} -v %{version} | grep -q %{name} ; then
-    dkms remove -m %{name} -v %{version} --all %{?rpm_dkms_opt:--rpm_safe_upgrade}
+    if dkms status -m %{name} -v %{version} | grep -q %{name} ; then
+        dkms remove -m %{name} -v %{version} --all %{?rpm_dkms_opt:--rpm_safe_upgrade}
+    fi
 fi
 
 %post -n %{dkmsname}
