@@ -92,7 +92,7 @@ def deploy(String[] repos, String branch, String build, Boolean deploy_to_prod, 
 			map_repo: ['.*': repo],
 			user: "rbrepo",
 		];
-		catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE'){
+		catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
 			if (repo_type == 'deb') {
 				deploy_map.agent = "rep-agent";
 				deployDeb(deploy_map);
