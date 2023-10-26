@@ -59,9 +59,7 @@ pipeline
 
 def pkg_map_branches(String repo)
 {
-    return [
-	'^master$': repo,
-	'^develop.*': repo + '-stg',
-	'^develop$': repo + '-dev',
+	return [
+		'^develop.*': repo + '-dev',
 	]
 }

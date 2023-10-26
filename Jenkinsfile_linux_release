@@ -1,0 +1,120 @@
+@Library('jenkins-utils-lib') _
+
+pipeline {
+	agent {
+		label 'dr-linbuild'
+	}
+	stages {
+		stage('Setup parameters') {
+			steps {
+				script {
+					properties([
+						parameters([
+							choice(
+								name: 'DEPLOY_TO',
+								choices: ['Staging', 'Prod'],
+								description: 'Deploy to:'
+							),
+							string(
+								defaultValue: '',
+								name: 'RELEASE_BRANCH',
+								trim: true
+							),
+							string(
+								defaultValue: '0',
+								name: 'RELEASE_BUILD',
+								trim: true
+							)
+						])
+					])
+				}
+			}
+		}
+		stage('Deploy DEB') {
+			steps {
+				script {
+					deployToDebRepos("${params.RELEASE_BRANCH}", "${params.RELEASE_BUILD}", "${params.DEPLOY_TO}");
+				}
+			}
+		}
+		stage('Deploy RPM') {
+			steps {
+				script {
+					deployToRpmRepos("${params.RELEASE_BRANCH}", "${params.RELEASE_BUILD}", "${params.DEPLOY_TO}");
+				}
+			}
+		}
+	}
+	post {
+		always {
+			deleteDir()
+		}
+	}
+}
+
+def deployToDebRepos(String branch, String build, String deploy_to)
+{
+	def deb_repos = [
+		'bionic-agent',
+		'focal-agent',
+		'jammy-agent',
+		'bullseye-agent',
+		'buster-agent',
+	] as String[]
+	def deploy_to_prod = (deploy_to == 'Prod');
+	deploy(deb_repos, branch, build, deploy_to_prod, 'deb');
+}
+
+def deployToRpmRepos(String branch, String build, String deploy_to)
+{
+
+	def rpm_repos = [
+		'ootpa',
+		'maipo',
+		'plow',
+	] as String[]
+	def deploy_to_prod = (deploy_to == 'Prod');
+	deploy(rpm_repos, branch, build, deploy_to_prod, 'rpm');
+}
+
+def deploy(String[] repos, String branch, String build, Boolean deploy_to_prod, String repo_type)
+{
+	def subfolder = repo_type.toUpperCase();
+	downloadFileFromArtifactory(
+		'slc_artifactory',
+		"replibit/elastio/$branch/$build/$subfolder/*.$repo_type",
+		"./$subfolder/");
+	repos.each {
+		def repo = deploy_to_prod ? it : it + '-stg';
+		println "Uploading packages from replibit/agent/$branch/$build/$subfolder/*.$repo_type to $repo";
+		deploy_map = [
+			dir : subfolder,
+			map_repo: ['.*': repo],
+			user: "rbrepo",
+		];
+		catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+			if (repo_type == 'deb') {
+				deploy_map.agent = "rep-agent";
+				deployDeb(deploy_map);
+			} else {
+				deploy_map.agent = "agent";
+				deployRpm(deploy_map);
+			}
+		}
+	}
+}
+
+def downloadFileFromArtifactory(String artifactoryServerId, String path, String dstFile)
+{
+	rtDownload (
+		serverId: artifactoryServerId,
+		spec:
+		"""{
+			"files": [{
+				"pattern": "${path}",
+				"target": "${dstFile}",
+				"flat": true
+			}]
+		}"""
+	)
+}
