@@ -597,6 +597,7 @@ rm -rf %{buildroot}
 %{_kmod_src_root}/dkms.conf
 %{_kmod_src_root}/genconfig.sh
 %{_kmod_src_root}/includes.h
+%{_kmod_src_root}/sign-module.sh
 %exclude %dir %{_kmod_src_root}/configure-tests/feature-tests/build
 %if 0%{?rhel} == 5 || (0%{?suse_version} && 0%{?suse_version} < 1315) || (0%{?fedora} && 0%{?fedora} < 23)
 %dir %{_sysconfdir}/kernel/postinst.d
