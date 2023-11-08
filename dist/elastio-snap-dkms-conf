@@ -5,7 +5,7 @@ PACKAGE_VERSION="@MODULE_VERSION@"
 PACKAGE_NAME="elastio-snap"
 PRE_BUILD="genconfig.sh ${kernelver}"
 # This must be used in POST_INSTALL instead of in POST_BUILD, because DKMS seems to override the actual signature
-POST_INSTALL="sign-module.sh ${kernelver}  /usr/lib/modules/${kernelver}/updates/dkms/${PACKAGE_NAME}.ko"
+POST_INSTALL="sign-module.sh ${kernelver}  /lib/modules/${kernelver}/updates/dkms/${PACKAGE_NAME}.ko"
 MAKE[0]="make -C ${kernel_source_dir} M=${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/build KVER=${kernelver} modules"
 STRIP[0]="no"
 CLEAN="make -C ${kernel_source_dir} M=${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/build KVER=${kernelver} clean"
