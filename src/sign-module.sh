@@ -1,18 +1,17 @@
-#!/bin/bash
+#!/bin/sh
 
 echo "Running the Axcient Kernel Module signer"
 
-result=$(mokutil --sb-state)
-if [[ "$result" != *"enabled"* ]]; then
+if ! $(mokutil --sb-state | grep -q enabled); then
     echo "Detected a BIOS firmware or the Secure Boot feature is disabled"
     exit 0
 fi
 
 if ! grep -q "asymmetri Axcient" /proc/keys; then
-    echo "WARNING: Secure Boot detected on this system. Either disable EFI Secure Boot "
-    "or check with Axcient knowledgebase for instructions "
-    "for enrolling a signing key for secure DKMS module support." >&2 \
-    && exit 1
+    echo "WARNING: Secure Boot detected on this system. Either disable EFI Secure Boot " \
+    "or check with Axcient knowledgebase for instructions " \
+    "for enrolling a signing key for secure DKMS module support."
+    exit 1
 fi	
 
 echo "Kernel Version: ${1}"
