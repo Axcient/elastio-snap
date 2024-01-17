@@ -902,7 +902,7 @@ static unsigned int elastio_snap_max_snap_devices = ELASTIO_SNAP_DEFAULT_SNAP_DE
 static int elastio_snap_debug = 0;
 static int elastio_snap_debug_data_dump = 1;
 int inode_debug_list[MAX_INODE_DEBUG_LIST];
-int inodes_count;
+int inodes_count = 0;
 
 module_param_named(may_hook_syscalls, elastio_snap_may_hook_syscalls, int, S_IRUGO);
 MODULE_PARM_DESC(may_hook_syscalls, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
