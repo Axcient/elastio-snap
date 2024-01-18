@@ -891,6 +891,8 @@ static void bio_free_pages(struct bio *bio){
 #define BIO_MAX_PAGES BIO_MAX_VECS
 #endif
 
+#define MAX_INODE_DEBUG_LIST 16
+
 //global module parameters
 static int elastio_snap_may_hook_syscalls = 0;
 static unsigned long elastio_snap_cow_ext_buf_size = sizeof(struct fiemap_extent) * 1024;
@@ -898,6 +900,9 @@ static unsigned long elastio_snap_cow_max_memory_default = (300 * 1024 * 1024);
 static unsigned int elastio_snap_cow_fallocate_percentage_default = 10;
 static unsigned int elastio_snap_max_snap_devices = ELASTIO_SNAP_DEFAULT_SNAP_DEVICES;
 static int elastio_snap_debug = 0;
+static int elastio_snap_debug_data_dump = 1;
+int inode_debug_list[MAX_INODE_DEBUG_LIST];
+int inodes_count = 0;
 
 module_param_named(may_hook_syscalls, elastio_snap_may_hook_syscalls, int, S_IRUGO);
 MODULE_PARM_DESC(may_hook_syscalls, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
@@ -916,6 +921,12 @@ MODULE_PARM_DESC(max_snap_devices, "maximum number of tracers available");
 
 module_param_named(debug, elastio_snap_debug, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "enables debug logging");
+
+module_param_named(debug_data_dump, elastio_snap_debug_data_dump, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(debug, "enables cow file data logging");
+
+module_param_array(inode_debug_list, int, &inodes_count, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(inode_debug_list, "list of inodes for which bio requests will be traced");
 
 /*********************************STRUCT DEFINITIONS*******************************/
 
@@ -959,6 +970,7 @@ struct tracing_params{
 	struct snap_device *dev;
 	atomic_t refs;
 	struct bsector_list bio_sects;
+	struct inode *inode;
 };
 
 #ifdef USE_BDOPS_SUBMIT_BIO
@@ -991,6 +1003,7 @@ struct cow_manager{
 	unsigned long allowed_sects; //the maximum number of sections that may be allocated at once
 	struct cow_section *sects; //pointer to the array of sections of mappings
 	struct snap_device *dev;
+	bool debug;
 };
 
 struct snap_device{
@@ -3045,6 +3058,12 @@ error:
 	return ret;
 }
 
+static void cow_debug_en(struct cow_manager *cm, bool en)
+{
+	LOG_DEBUG("%s verbose debug for the COW manager", (en) ? "Enabling" : "Disabling");
+	cm->debug = en;
+}
+
 static int cow_write_current(struct cow_manager *cm, uint64_t block, void *buf){
 	int ret;
 	uint64_t block_mapping;
@@ -3053,8 +3072,15 @@ static int cow_write_current(struct cow_manager *cm, uint64_t block, void *buf){
 	ret = cow_read_mapping(cm, block, &block_mapping);
 	if(ret) goto error;
 
+	if (cm->debug)
+		LOG_DEBUG("> Mapping for the block %llu: %llu", block, block_mapping);
+
 	//if the block mapping already exists return so we don't overwrite it
-	if(block_mapping) return 0;
+	if(block_mapping) {
+		if (cm->debug)
+			LOG_DEBUG(" > Block mapping exists, skipping");
+		return 0;
+	}
 
 	//write the mapping
 	ret = __cow_write_current_mapping(cm, block);
@@ -3063,6 +3089,14 @@ static int cow_write_current(struct cow_manager *cm, uint64_t block, void *buf){
 	//write the data
 	ret = __cow_write_data(cm, buf);
 	if(ret) goto error;
+
+	if (cm->debug) {
+		if (elastio_snap_debug_data_dump) {
+			print_hex_dump(KERN_DEBUG, " > ", DUMP_PREFIX_OFFSET, 32, 1,
+			   buf, COW_BLOCK_SIZE, true);
+		}
+		LOG_DEBUG(" > Mapping & data for the block %llu have been written", block);
+	}
 
 	return 0;
 
@@ -3240,6 +3274,10 @@ static int tp_alloc(struct snap_device *dev, struct bio *bio, struct tracing_par
 	return 0;
 }
 
+static void tp_set_inode(struct tracing_params *tp, struct inode * inode) {
+	tp->inode = inode;
+}
+
 static void tp_get(struct tracing_params *tp){
 	atomic_inc(&tp->refs);
 }
@@ -3390,6 +3428,11 @@ static void bio_destructor_snap_dev(struct bio *bio){
 #endif
 
 static void bio_free_clone(struct bio *bio){
+
+	if (elastio_snap_bio_op_flagged(bio, REQ_DRV)) {
+		elastio_snap_bio_op_clear_flag(bio, REQ_DRV);
+	}
+
 	bio_free_pages(bio);
 	bio_put(bio);
 }
@@ -3469,7 +3512,11 @@ static int bio_make_read_clone(struct block_device *bdev, struct bio_set *bs, st
 
 error:
 	if(ret) LOG_ERROR(ret, "error creating read clone of write bio");
-	if(new_bio) bio_free_clone(new_bio);
+	if(new_bio) {
+		/** deprecated and won't be used (kernels < 3.10) */
+		new_bio->bi_private = snap_devices[0]; /** I'm a useless workaround :) */
+		bio_free_clone(new_bio);
+	}
 
 	*bytes_added = 0;
 	*bio_out = NULL;
@@ -3519,6 +3566,27 @@ error:
 	return ret;
 }
 
+static struct inode *elastio_snap_should_mark_bio(struct bio* bio)
+{
+	int i;
+	bio_iter_t iter;
+	bio_iter_bvec_t bvec;
+
+	bio_for_each_segment(bvec, bio, iter) {
+		for (i = 0; i < inodes_count; i++) {
+			struct inode *inode = page_get_inode(bio_iter_page(bio, iter));
+			if (!inode)
+				continue;
+
+			if (inode->i_ino == inode_debug_list[i]) {
+				return inode;
+			}
+		}
+	}
+
+	return NULL;
+}
+
 static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 	int ret, mode;
 	struct bio_vec *bvec;
@@ -3533,6 +3601,7 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 	sector_t bio_orig_sect, cur_block, cur_sect;
 	unsigned int bio_orig_idx, bio_orig_size;
 	uint64_t block_mapping, bytes_to_copy, block_off, bvec_off;
+	struct inode *inode;
 
 	//save the original state of the bio
 	orig_private = bio->bi_private;
@@ -3544,9 +3613,18 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 	elastio_snap_bio_set_dev(bio, dev->sd_base_dev);
 	elastio_snap_set_bio_ops(bio, REQ_OP_READ, READ_SYNC);
 
+	inode = elastio_snap_should_mark_bio(bio);
+	if (inode) {
+		elastio_snap_bio_op_set_flag(bio, REQ_DRV);
+		LOG_DEBUG(" > Read-type bio for inode %lu", inode->i_ino);
+	}
+
 	//detect fastpath for bios completely contained within either the cow file or the base device
 	ret = snap_read_bio_get_mode(dev, bio, &mode);
 	if(ret) goto out;
+
+	if (elastio_snap_bio_op_flagged(bio, REQ_DRV))
+		LOG_DEBUG(" > Read mode for inode %lu: %d", inode->i_ino, mode);
 
 	//submit the bio to the base device and wait for completion
 	if(mode != READ_MODE_COW_FILE){
@@ -3598,6 +3676,10 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 						kunmap(bvec->bv_page);
 						goto out;
 					}
+
+					if (elastio_snap_bio_op_flagged(bio, REQ_DRV)) {
+						LOG_DEBUG(" > Data chunk read from the COW file");
+					}
 				}
 
 				cur_sect += bytes_to_copy / SECTOR_SIZE;
@@ -3617,6 +3699,26 @@ out:
 		bio_idx(bio) = bio_orig_idx;
 		bio_size(bio) = bio_orig_size;
 		bio_sector(bio) = bio_orig_sect;
+	}
+
+	if (elastio_snap_bio_op_flagged(bio, REQ_DRV)) {
+		if (elastio_snap_debug_data_dump) {
+#ifdef HAVE_BVEC_ITER_ALL
+			bio_for_each_segment_all(bvec, bio, iter) {
+#else
+			bio_for_each_segment_all(bvec, bio, i) {
+#endif
+				//map the page into kernel space
+				data = kmap(bvec->bv_page);
+				LOG_DEBUG(" > Read bio page dump:");
+				print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 32, 1,
+					data, COW_BLOCK_SIZE, true);
+				kunmap(bvec->bv_page);
+			}
+			LOG_DEBUG("> All pages dumped.");
+		}
+
+		elastio_snap_bio_op_clear_flag(bio, REQ_DRV);
 	}
 
 	//revert bio's original data
@@ -3652,17 +3754,30 @@ static int snap_handle_write_bio(const struct snap_device *dev, struct bio *bio)
 		end_block = start_block + (bvec->bv_len / COW_BLOCK_SIZE);
 		//map the page into kernel space
 		data = kmap(bvec->bv_page);
+
 		//loop through the blocks in the page
 		for(; start_block < end_block; start_block++){
+
+			if (elastio_snap_bio_op_flagged(bio, REQ_DRV)) {
+				LOG_DEBUG("bio for inode %lu: block is being processed by the COW thread", ((struct inode *)bio->bi_private)->i_ino);
+				cow_debug_en(dev->sd_cow, true);
+			}
+
 			//pass the block to the cow manager to be handled
 			ret = cow_write_current(dev->sd_cow, start_block, data);
 			if(ret){
+				cow_debug_en(dev->sd_cow, false);
 				kunmap(bvec->bv_page);
 				goto error;
 			}
 		}
 		//unmap the page
 		kunmap(bvec->bv_page);
+	}
+
+	if (elastio_snap_bio_op_flagged(bio, REQ_DRV)) {
+		LOG_DEBUG("bio for inode %lu: all blocks have been processed by the COW thread", ((struct inode *)bio->bi_private)->i_ino);
+		cow_debug_en(dev->sd_cow, false);
 	}
 
 	return 0;
@@ -3768,6 +3883,7 @@ static int snap_cow_thread(void *data){
 			elastio_snap_bio_endio(bio, (ret)? wrap_err_io(dev) : 0);
 		}else{
 			if(is_failed){
+				bio->bi_private = dev;
 				bio_free_clone(bio);
 				continue;
 			}
@@ -3784,6 +3900,7 @@ static int snap_cow_thread(void *data){
 			}
 
 			atomic64_inc(&dev->sd_processed_cnt);
+			bio->bi_private = dev;
 			bio_free_clone(bio);
 		}
 	}
@@ -3843,9 +3960,11 @@ static int inc_sset_thread(void *data){
 
 static void __on_bio_read_complete(struct bio *bio, int err){
 	int ret;
+	bool bio_traced = false;
 	struct tracing_params *tp = bio->bi_private;
 	struct snap_device *dev = tp->dev;
 	struct bio_sector_map* map = NULL;
+
 #ifndef HAVE_BVEC_ITER
 	unsigned short i = 0;
 #endif
@@ -3855,6 +3974,10 @@ static void __on_bio_read_complete(struct bio *bio, int err){
 		ret = err;
 		LOG_ERROR(ret, "error reading from base device for copy on write");
 		goto error;
+	}
+
+	if (elastio_snap_bio_op_flagged(bio, REQ_DRV)) {
+		bio_traced = true;
 	}
 
 	//change the bio into a write bio
@@ -3886,10 +4009,14 @@ static void __on_bio_read_complete(struct bio *bio, int err){
 	 * at this point we set bi_private to the snap_device and change the destructor to use
 	 * that instead. This only matters on older kernels
 	 */
-	bio->bi_private = dev;
 #ifndef HAVE_BIO_BI_POOL
 	bio->bi_destructor = bio_destructor_snap_dev;
 #endif
+
+	if (bio_traced) {
+		bio->bi_private = tp->inode;
+		elastio_snap_bio_op_set_flag(bio, REQ_DRV);
+	}
 
 	//queue cow bio for processing by kernel thread
 	bio_queue_add(&dev->sd_cow_bios, bio);
@@ -3904,6 +4031,7 @@ error:
 	LOG_ERROR(ret, "error during bio read complete callback");
 	tracer_set_fail_state(dev, ret);
 	tp_put(tp);
+	bio->bi_private = dev;
 	bio_free_clone(bio);
 }
 
@@ -3965,6 +4093,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	sector_t start_sect, end_sect;
 	unsigned int bytes, pages;
 	int max_sectors;
+	struct inode *inode;
 
 	//if we don't need to cow this bio or if the snapshot is in the failed state,
 	//e.g. physical memory usage has exceeded threshold or COW file state is failed,
@@ -4015,6 +4144,14 @@ retry:
 	atomic64_inc(&dev->sd_submitted_cnt);
 	smp_wmb();
 
+	inode = elastio_snap_should_mark_bio(bio);
+	if (inode) {
+		tp_set_inode(tp, inode);
+		elastio_snap_bio_op_set_flag(new_bio, REQ_DRV);
+		LOG_DEBUG(" > Marked bio for inode %lu as tracked", inode->i_ino);
+		LOG_DEBUG(" > Start section: %llu, pages: %u", start_sect, pages);
+	}
+
 	//
 	// submit the bios
 	//
@@ -4045,7 +4182,10 @@ error:
 	tracer_set_fail_state(dev, ret);
 
 	//clean up the bio we allocated (but did not submit)
-	if(new_bio) bio_free_clone(new_bio);
+	if(new_bio) {
+		new_bio->bi_private = dev;
+		bio_free_clone(new_bio);
+	}
 	if(tp) tp_put(tp);
 
 	//this function only returns non-zero if the real mrf does not. Errors set the fail state.
