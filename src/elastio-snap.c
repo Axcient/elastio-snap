@@ -146,7 +146,7 @@ struct request_queue* (*elastio_blk_alloc_queue)(int node_id) = (BLK_ALLOC_QUEUE
 struct super_block* (*elastio_snap_get_super)(struct block_device *) = (GET_SUPER_ADDR != 0) ?
 	(struct super_block* (*)(struct block_device*)) (GET_SUPER_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
-#ifndef HAVE_BLKDEV_GET_BY_PATH
+#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4)
 struct block_device *elastio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
 	int r;
 	struct block_device *retbd;
@@ -184,7 +184,7 @@ fail:
 }
 #endif
 
-#ifndef HAVE_BLKDEV_GET_BY_PATH
+#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4)
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, void *holder){
 	struct block_device *bdev;
@@ -204,6 +204,15 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 	return bdev;
 }
 #endif
+
+static struct block_device *elastio_snap_blkdev_get_by_path(const char *path, fmode_t mode, void *holder)
+{
+#ifdef HAVE_BLKDEV_GET_BY_PATH_4
+	return blkdev_get_by_path(path, mode, holder, NULL);
+#else
+	return blkdev_get_by_path(path, mode, holder);
+#endif
+}
 
 #ifndef READ_SYNC
 #define READ_SYNC 0
@@ -506,6 +515,8 @@ static int elastio_snap_should_remove_suid(struct dentry *dentry)
 #ifdef HAVE_BLKDEV_PUT_1
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
 	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev);
+#elif defined HAVE_BLKDEV_PUT_HOLDER
+	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev, NULL);
 #else
 	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
 #endif
@@ -1060,6 +1071,9 @@ static int snap_release(struct inode *inode, struct file *filp);
 //#elif LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 static int snap_open(struct block_device *bdev, fmode_t mode);
 static int snap_release(struct gendisk *gd, fmode_t mode);
+#elif defined HAVE_BDOPS_OPEN_GENDISK
+static int snap_open(struct gendisk *gd, fmode_t mode);
+static void snap_release(struct gendisk *gd);
 #else
 static int snap_open(struct block_device *bdev, fmode_t mode);
 static void snap_release(struct gendisk *gd, fmode_t mode);
@@ -4636,7 +4650,7 @@ static int __tracer_setup_base_dev(struct snap_device *dev, const char *bdev_pat
 
 	//open the base block device
 	LOG_DEBUG("finding block device");
-	dev->sd_base_dev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
+	dev->sd_base_dev = elastio_snap_blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
 	if(IS_ERR(dev->sd_base_dev)){
 		ret = PTR_ERR(dev->sd_base_dev);
 		dev->sd_base_dev = NULL;
@@ -5525,7 +5539,7 @@ static int __verify_bdev_writable(const char *bdev_path, int *out){
 	struct super_block *sb;
 
 	//open the base block device
-	bdev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
+	bdev = elastio_snap_blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
 
 	if(IS_ERR(bdev)){
 		*out = 0;
@@ -6113,7 +6127,7 @@ static int __handle_bdev_mount_writable(const char __user *dir_name, const struc
 
 		if(test_bit(UNVERIFIED, &dev->sd_state)){
 			//get the block device for the unverified tracer we are looking into
-			cur_bdev = blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
+			cur_bdev = elastio_snap_blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
 			if(IS_ERR(cur_bdev)){
 				cur_bdev = NULL;
 				continue;
@@ -6206,7 +6220,7 @@ static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx
 
 	//if we successfully went dormant, but the umount call failed, reactivate
 	if(umount_ret){
-		bdev = blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
+		bdev = elastio_snap_blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
 		if(!bdev || IS_ERR(bdev)){
 			LOG_DEBUG("device gone, moving to error state");
 			tracer_set_fail_state(dev, -ENODEV);
@@ -6666,6 +6680,15 @@ static int snap_open(struct block_device *bdev, fmode_t mode){
 
 static int snap_release(struct gendisk *gd, fmode_t mode){
 	return __tracer_close(gd->private_data);
+}
+#elif defined HAVE_BDOPS_OPEN_GENDISK
+static int snap_open(struct gendisk *gd, fmode_t mode){
+	return __tracer_open(gd->private_data);
+}
+
+static void snap_release(struct gendisk *gd){
+	// FIXME
+	__tracer_close(gd->private_data);
 }
 #else
 static int snap_open(struct block_device *bdev, fmode_t mode){
