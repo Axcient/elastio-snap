@@ -3568,22 +3568,27 @@ error:
 
 static struct inode *elastio_snap_should_mark_bio(struct bio* bio)
 {
-	int i;
-	bio_iter_t iter;
-	bio_iter_bvec_t bvec;
+#ifdef HAVE_BVEC_ITER_ALL
+	struct bvec_iter_all iter;
+	struct bio_vec *bvec;
+	bio_for_each_segment_all(bvec, bio, iter) {
+#else
+	int i = 0;
+	struct bio_vec *bvec;
+	bio_for_each_segment_all(bvec, bio, i) {
+#endif
+		int j;
 
-	bio_for_each_segment(bvec, bio, iter) {
-		for (i = 0; i < inodes_count; i++) {
-			struct inode *inode = page_get_inode(bio_iter_page(bio, iter));
-			if (!inode)
-				continue;
+		struct inode *inode = page_get_inode(bvec->bv_page);
+		if (!inode)
+			continue;
 
-			if (inode->i_ino == inode_debug_list[i]) {
+		for (j = 0; j < inodes_count; j++) {
+			if (inode->i_ino == inode_debug_list[j]) {
 				return inode;
 			}
 		}
 	}
-
 	return NULL;
 }
 
