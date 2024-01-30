@@ -60,6 +60,7 @@ def deployToDebRepos(String branch, String build, String deploy_to)
 		'jammy-agent',
 		'bullseye-agent',
 		'buster-agent',
+		'bookworm-agent',
 	] as String[]
 	def deploy_to_prod = (deploy_to == 'Prod');
 	deploy(deb_repos, branch, build, deploy_to_prod, 'deb');
