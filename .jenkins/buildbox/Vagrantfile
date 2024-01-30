@@ -1,0 +1,102 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.require_version ">= 1.6.2"
+
+$box_version=">= 20.9.9"
+
+pid = Process.pid
+
+$set_environment_variables = <<ENV_VARS_SCRIPT
+tee /etc/profile.d/set_build_env.sh > /dev/null <<EOF
+export SOURCE_BRANCH=\"#{ENV['SOURCE_BRANCH']}\"
+export REPO_PATH=#{ENV['REPO_PATH']}
+export PKG_TYPE=#{ENV['PKG_TYPE']}
+export DIST_NAME=#{ENV['DIST_NAME']}
+export DIST_VER=#{ENV['DIST_VER']}
+
+cd /home/elastio/elastio-snap
+EOF
+
+chmod +x /etc/profile.d/set_build_env.sh
+ENV_VARS_SCRIPT
+
+DISTRO = {}
+DISTRO['amd64'] = [ "debian8", "debian9", "debian10", "debian11", "debian12",
+                    "amazon2", "amazon2023",
+                    "centos7", "centos8", "centos9",
+                    "alma8", "alma9",
+                    "fedora31", "fedora32", "fedora34", "fedora35", "fedora36", "fedora37", "fedora38",
+                    "ubuntu2004", "ubuntu2204" ]
+
+DISTRO['arm64'] = [ "debian10", "debian11", "debian12",
+                    "amazon2", "amazon2023",
+                    "centos8", "centos9",
+                    "alma8", "alma9",
+                    "fedora35", "fedora36", "fedora37", "fedora38",
+                    "ubuntu2204" ]
+
+# NOTE: This environment variable should be set to enable triggers of the type "action".
+# The actions are used to make a lock around Vagrant::Action::Builtin::BoxAdd to avoid
+# a problem, when 2 instances of the same box are "uping" and downloading new box (or version) image.
+# Vagrant uses same temporary file for all concurrent downloads. As result, it's corrupted.
+# Setting it just for the 'vagrnat up'.
+ENV['VAGRANT_EXPERIMENTAL']='typed_triggers' if ARGV.include?('up')
+
+Vagrant.configure("2") do |config|
+
+  # Get runner architecture
+  arch =`uname -m`.strip
+  if arch == "x86_64"
+    arch = "amd64"
+  elsif arch == "aarch64"
+    arch = "arm64"
+  end
+
+  DISTRO["#{arch}"].each do |distro|
+    box = "#{distro}-#{arch}-build"
+    instance = "#{box}-1"
+    next if ARGV.include?('up') && ARGV.none?("#{instance}")
+    config.vm.define "#{instance}", autostart: false do |b|
+      b.vm.box = "#{box}"
+      b.vm.box_url = [ "https://s3.eu-central-1.wasabisys.com/blobs-wasabi.elastio.dev/devboxes/master/#{box}.json" ]
+      b.vm.box_version = $box_version
+    end
+
+    config.trigger.before :"Vagrant::Action::Builtin::BoxAdd", type: :action do |trigger|
+      trigger.name = "Lock box add"
+      trigger.info = "Locking 'box add' action for the box '#{box}'!"
+      trigger.run = { inline: <<-LOCK_SCRIPT
+        bash -c 'touch /tmp/#{box}.#{pid}
+                 pids=$(ls /tmp/#{box}.* | grep -v #{pid} | cut -d'.' -f2)
+                 for pid in ${pids[@]}; do
+                   if ps -A -o pid | grep -q $pid ; then
+                     echo "Waiting for vagrant box add with PID: $pid"
+                     tail --pid=$pid -f /dev/null
+                   else
+                     rm -f /tmp/#{box}.$pid
+                   fi
+                 done'
+        LOCK_SCRIPT
+      }
+    end
+
+    config.trigger.after :"Vagrant::Action::Builtin::BoxAdd", type: :action do |trigger|
+      trigger.name = "Unlock box add"
+      trigger.info = "Unlocking 'box add' action for the box '#{box}'!"
+      trigger.run = {inline: "rm /tmp/#{box}.#{pid}" }
+    end
+  end
+
+  config.vm.provision "shell", inline: $set_environment_variables, run: "always"
+  config.vm.synced_folder "../../", "/home/elastio/elastio-snap", type: "rsync",
+    rsync__args: ["-rLkz", "--delete", "--filter=:- .gitignore"], rsync__exclude: [".vagrant/"]
+
+  # This Vagrantfile can be used for the various box versions, even very old ones. Thus we need
+  # to define the 2 management_network variables here to prevent deletion of the 'vagrant-libvirt'
+  # network on the box destroy.
+  config.vm.provider :libvirt do |domain|
+    domain.management_network_name = "vagrant-libvirt"
+    domain.management_network_keep = "true"
+  end
+end

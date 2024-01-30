@@ -1,0 +1,24 @@
+set -x
+
+dist_name=$(echo $DISTRO | grep -o -E '[a-z]+')
+dist_name=$(d=${dist_name^} && echo ${d//os/OS})
+dist_ver=$(echo $DISTRO | grep -o -E '[0-9]+')
+case $dist_name in
+    Debian|Ubuntu) pkg_type=deb ;;
+    *)             pkg_type=rpm ;;
+esac
+
+runner_num=1
+source_branch=$(.jenkins/scripts/detect_branch.sh)
+
+echo "SOURCE_BRANCH=$source_branch"                     >> $GITHUB_ENV
+echo "PKG_TYPE=$pkg_type"                               >> $GITHUB_ENV
+echo "DIST_NAME=$dist_name"                             >> $GITHUB_ENV
+echo "DIST_VER=$dist_ver"                               >> $GITHUB_ENV
+echo "RUNNER_NUM=$runner_num"                           >> $GITHUB_ENV
+echo "BOX_DIR=.jenkins/buildbox"                        >> $GITHUB_ENV
+echo "BOX_NAME=$DISTRO-$ARCH-build"                     >> $GITHUB_ENV
+echo "INSTANCE_NAME=$DISTRO-$ARCH-build-$runner_num"    >> $GITHUB_ENV
+echo "TEST_IMAGES=\"$PWD/$DISTRO-test_image1.qcow2 \
+$PWD/$DISTRO-test_image2.qcow2\""                         >> $GITHUB_ENV
+echo "TEST_DRIVES=\"vdb vdc\""                              >> $GITHUB_ENV
