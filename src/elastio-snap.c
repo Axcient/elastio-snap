@@ -146,7 +146,7 @@ struct request_queue* (*elastio_blk_alloc_queue)(int node_id) = (BLK_ALLOC_QUEUE
 struct super_block* (*elastio_snap_get_super)(struct block_device *) = (GET_SUPER_ADDR != 0) ?
 	(struct super_block* (*)(struct block_device*)) (GET_SUPER_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
-#ifndef HAVE_BLKDEV_GET_BY_PATH
+#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4)
 struct block_device *elastio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
 	int r;
 	struct block_device *retbd;
@@ -184,7 +184,7 @@ fail:
 }
 #endif
 
-#ifndef HAVE_BLKDEV_GET_BY_PATH
+#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4)
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, void *holder){
 	struct block_device *bdev;
@@ -204,6 +204,15 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 	return bdev;
 }
 #endif
+
+static struct block_device *elastio_snap_blkdev_get_by_path(const char *path, fmode_t mode, void *holder)
+{
+#ifdef HAVE_BLKDEV_GET_BY_PATH_4
+	return blkdev_get_by_path(path, mode, holder, NULL);
+#else
+	return blkdev_get_by_path(path, mode, holder);
+#endif
+}
 
 #ifndef READ_SYNC
 #define READ_SYNC 0
@@ -506,6 +515,8 @@ static int elastio_snap_should_remove_suid(struct dentry *dentry)
 #ifdef HAVE_BLKDEV_PUT_1
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
 	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev);
+#elif defined HAVE_BLKDEV_PUT_HOLDER
+	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev, NULL);
 #else
 	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
 #endif
@@ -976,6 +987,9 @@ struct tracing_params{
 #ifdef USE_BDOPS_SUBMIT_BIO
 struct tracing_ops {
 	struct block_device_operations *bd_ops;
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+	bool has_submit_bio; // kernel version >= 6.4
+#endif
 	atomic_t refs;
 };
 #endif
@@ -1060,6 +1074,9 @@ static int snap_release(struct inode *inode, struct file *filp);
 //#elif LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 static int snap_open(struct block_device *bdev, fmode_t mode);
 static int snap_release(struct gendisk *gd, fmode_t mode);
+#elif defined HAVE_BDOPS_OPEN_GENDISK
+static int snap_open(struct gendisk *gd, fmode_t mode);
+static void snap_release(struct gendisk *gd);
 #else
 static int snap_open(struct block_device *bdev, fmode_t mode);
 static void snap_release(struct gendisk *gd, fmode_t mode);
@@ -3348,6 +3365,9 @@ static int tracing_ops_alloc(struct snap_device *dev) {
 	memcpy(trops->bd_ops, elastio_snap_get_bd_ops(dev->sd_base_dev), sizeof(struct block_device_operations));
 
 	// Set tracing_mrf as submit_bio. All other content is already there copied from the original structure.
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+	trops->has_submit_bio = dev->sd_base_dev->bd_has_submit_bio;
+#endif
 	trops->bd_ops->submit_bio = tracing_mrf;
 	atomic_set(&trops->refs, 1);
 	dev->sd_tracing_ops = trops;
@@ -4505,9 +4525,9 @@ static int __tracer_should_reset_mrf(const struct snap_device *dev){
 }
 
 #ifndef USE_BDOPS_SUBMIT_BIO
-static int __tracer_transition_tracing(struct snap_device *dev, struct block_device *bdev, make_request_fn *new_mrf, struct snap_device **dev_ptr){
+static int __tracer_transition_tracing(struct snap_device *dev, struct block_device *bdev, make_request_fn *new_mrf, struct snap_device **dev_ptr, bool start){
 #else
-static int __tracer_transition_tracing(struct snap_device *dev, struct block_device *bdev, const struct block_device_operations *new_ops, struct snap_device **dev_ptr){
+static int __tracer_transition_tracing(struct snap_device *dev, struct block_device *bdev, const struct block_device_operations *new_ops, struct snap_device **dev_ptr, bool start){
 #endif
 	int ret;
 	struct super_block *origsb = elastio_snap_get_super(bdev);
@@ -4540,12 +4560,15 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	}
 
 	smp_wmb();
-	if(dev){
+	if(start){
 		LOG_DEBUG("starting tracing");
 		if (dev_ptr) *dev_ptr = dev;
 		smp_wmb();
 #ifdef USE_BDOPS_SUBMIT_BIO
 		if(new_ops) elastio_snap_set_bd_ops(bdev, new_ops);
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+		bdev->bd_has_submit_bio = true; // kernel version >= 6.4
+#endif
 #else
 		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf);
 #endif
@@ -4557,11 +4580,14 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 #elif defined USE_BDOPS_SUBMIT_BIO
 // Linux version 5.9+
 		if(new_ops) elastio_snap_set_bd_ops(bdev, new_ops);
+#ifdef HAVE_BD_HAS_SUBMIT_BIO
+		bdev->bd_has_submit_bio = dev->sd_tracing_ops->has_submit_bio; // kernel version >= 6.4
+#endif
 #else
 // Linux version older than 5.8
 		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf);
 #endif
-		if (dev_ptr) *dev_ptr = dev;
+		if (dev_ptr) *dev_ptr = NULL;
 		smp_wmb();
 	}
 
@@ -4641,7 +4667,7 @@ static int __tracer_setup_base_dev(struct snap_device *dev, const char *bdev_pat
 
 	//open the base block device
 	LOG_DEBUG("finding block device");
-	dev->sd_base_dev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
+	dev->sd_base_dev = elastio_snap_blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
 	if(IS_ERR(dev->sd_base_dev)){
 		ret = PTR_ERR(dev->sd_base_dev);
 		dev->sd_base_dev = NULL;
@@ -5155,14 +5181,14 @@ static void __tracer_destroy_tracing(struct snap_device *dev){
 
 			LOG_DEBUG("replacing make_request_fn");
 #ifdef USE_BDOPS_SUBMIT_BIO
-			__tracer_transition_tracing(NULL, dev->sd_base_dev, dev->sd_orig_ops, &snap_devices[dev->sd_minor]);
+			__tracer_transition_tracing(dev, dev->sd_base_dev, dev->sd_orig_ops, &snap_devices[dev->sd_minor], false);
 #else
-			__tracer_transition_tracing(NULL, dev->sd_base_dev, dev->sd_orig_mrf, &snap_devices[dev->sd_minor]);
+			__tracer_transition_tracing(dev, dev->sd_base_dev, dev->sd_orig_mrf, &snap_devices[dev->sd_minor], false);
 #endif
 		}
 		else {
 			LOG_DEBUG("no need to replace make_request_fn");
-			__tracer_transition_tracing(NULL, dev->sd_base_dev, NULL, &snap_devices[dev->sd_minor]);
+			__tracer_transition_tracing(dev, dev->sd_base_dev, NULL, &snap_devices[dev->sd_minor], false);
 		}
 
 		smp_wmb();
@@ -5201,7 +5227,7 @@ static int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor){
 	ret = find_orig_mrf(dev->sd_base_dev, &dev->sd_orig_mrf);
 	if(ret) goto error;
 
-	ret = __tracer_transition_tracing(dev, dev->sd_base_dev, tracing_mrf, &snap_devices[minor]);
+	ret = __tracer_transition_tracing(dev, dev->sd_base_dev, tracing_mrf, &snap_devices[minor], true);
 #else
 	if (!dev->sd_tracing_ops) {
 		// Multiple devices on the same disk are sharing block_device_operations struct.
@@ -5219,7 +5245,7 @@ static int __tracer_setup_tracing(struct snap_device *dev, unsigned int minor){
 			LOG_DEBUG("using already existing tracing ops for device with minor %i", minor);
 		}
 
-		ret = __tracer_transition_tracing(dev, dev->sd_base_dev, dev->sd_tracing_ops->bd_ops, &snap_devices[minor]);
+		ret = __tracer_transition_tracing(dev, dev->sd_base_dev, dev->sd_tracing_ops->bd_ops, &snap_devices[minor], true);
 	}
 	else {
 		LOG_DEBUG("device with minor %i already has sd_tracing_ops", minor);
@@ -5530,7 +5556,7 @@ static int __verify_bdev_writable(const char *bdev_path, int *out){
 	struct super_block *sb;
 
 	//open the base block device
-	bdev = blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
+	bdev = elastio_snap_blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
 
 	if(IS_ERR(bdev)){
 		*out = 0;
@@ -6118,7 +6144,7 @@ static int __handle_bdev_mount_writable(const char __user *dir_name, const struc
 
 		if(test_bit(UNVERIFIED, &dev->sd_state)){
 			//get the block device for the unverified tracer we are looking into
-			cur_bdev = blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
+			cur_bdev = elastio_snap_blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
 			if(IS_ERR(cur_bdev)){
 				cur_bdev = NULL;
 				continue;
@@ -6211,7 +6237,7 @@ static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx
 
 	//if we successfully went dormant, but the umount call failed, reactivate
 	if(umount_ret){
-		bdev = blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
+		bdev = elastio_snap_blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
 		if(!bdev || IS_ERR(bdev)){
 			LOG_DEBUG("device gone, moving to error state");
 			tracer_set_fail_state(dev, -ENODEV);
@@ -6671,6 +6697,14 @@ static int snap_open(struct block_device *bdev, fmode_t mode){
 
 static int snap_release(struct gendisk *gd, fmode_t mode){
 	return __tracer_close(gd->private_data);
+}
+#elif defined HAVE_BDOPS_OPEN_GENDISK
+static int snap_open(struct gendisk *gd, fmode_t mode){
+	return __tracer_open(gd->private_data);
+}
+
+static void snap_release(struct gendisk *gd){
+	__tracer_close(gd->private_data);
 }
 #else
 static int snap_open(struct block_device *bdev, fmode_t mode){

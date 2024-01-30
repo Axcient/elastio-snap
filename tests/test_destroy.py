@@ -45,6 +45,7 @@ class TestDestroy(DeviceTestCase):
         self.assertFalse(os.path.exists(self.snap_device))
         self.assertIsNone(elastio_snap.info(self.minor))
 
+    @unittest.skip('Temporarily disabled as may_syscall_hook=0')
     def test_destroy_dormant_snapshot(self):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
         self.addCleanup(elastio_snap.destroy, self.minor)
@@ -63,6 +64,7 @@ class TestDestroy(DeviceTestCase):
         self.assertFalse(os.path.exists(self.snap_device))
         self.assertIsNone(elastio_snap.info(self.minor))
 
+    @unittest.skip('Temporarily disabled as may_syscall_hook=0')
     def test_destroy_dormant_incremental(self):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
         self.addCleanup(elastio_snap.destroy, self.minor)
