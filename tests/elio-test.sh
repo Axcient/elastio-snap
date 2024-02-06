@@ -97,7 +97,7 @@ echo
 dmesg -c &> /dev/null
 >| dmesg.log
 
-python3 -m unittest -v $test_case
+nice -n -20 ionice -c1 python3 -m unittest -v $test_case
 ret=$?
 dmesg > dmesg.log
 

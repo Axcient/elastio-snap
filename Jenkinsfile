@@ -6,7 +6,7 @@ def artifactoryRoot = "replibit/elastio/"
 def scriptsDir = ".jenkins/scripts"
 def supported_fs = [ 'ext2', 'ext3', 'ext4', 'xfs']
 
-MAX_CONCURENTS = 8
+MAX_CONCURENTS = 11
 st_locks_count = 0
 
 pipeline
@@ -36,12 +36,13 @@ pipeline
 						name 'DISTRO'
 						values  'empty', //NOTE: for correct draw in OpenBlueOcean
 							'DEB', 'RPM',
-							'debian8', 'debian9', 'debian10', 'debian11', 'debian12',
-							'amazon2', 'amazon2023',
+							//'debian8', 'debian9',
+							'debian10', 'debian11', 'debian12',
+							//'amazon2', 'amazon2023',
 							'centos7', 'centos8', 'centos9',
-							'alma8', 'alma9',
-							'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37',
-							'ubuntu2004', 'ubuntu2204'
+							'alma8', 'alma9'//,
+							//'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37',
+							//'ubuntu2004', 'ubuntu2204'
 					}
 				}
 				stages

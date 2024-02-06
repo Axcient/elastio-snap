@@ -22,3 +22,5 @@ pkgbuild/
 
 # Vagrant hidden dirs
 .github/buildbox/.vagrant
+.jenkins/buildbox/.vagrant
+.jenkins/buildbox@tmp
