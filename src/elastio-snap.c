@@ -888,10 +888,12 @@ static void bio_free_pages(struct bio *bio){
  * be defined and equal to the 2 bits.
  */
 #define __ELASTIO_SNAP_PASSTHROUGH 28	// set as the last flag bit
+#define __ELASTIO_SNAP_REQ_DRV	   27   // temporary flag used for data debugging
 #else
 // set as an unused flag in versions older than 4.8
 // set as an unused opcode bit in kernels newer than 4.9
 #define __ELASTIO_SNAP_PASSTHROUGH 30
+#define __ELASTIO_SNAP_REQ_DRV	   29   // temporary flag used for data debugging
 #endif
 #define ELASTIO_SNAP_PASSTHROUGH (1ULL << __ELASTIO_SNAP_PASSTHROUGH)
 
@@ -903,6 +905,11 @@ static void bio_free_pages(struct bio *bio){
 #endif
 
 #define MAX_INODE_DEBUG_LIST 16
+
+#ifndef REQ_DRV
+// was added in v4.15
+#define REQ_DRV (1U << __ELASTIO_SNAP_REQ_DRV)
+#endif
 
 //global module parameters
 static int elastio_snap_may_hook_syscalls = 0;
@@ -4174,7 +4181,7 @@ retry:
 		tp_set_inode(tp, inode);
 		elastio_snap_bio_op_set_flag(new_bio, REQ_DRV);
 		LOG_DEBUG(" > Marked bio for inode %lu as tracked", inode->i_ino);
-		LOG_DEBUG(" > Start section: %llu, pages: %u", start_sect, pages);
+		LOG_DEBUG(" > Start section: %llu, pages: %u", (uint64_t) start_sect, pages);
 	}
 
 	//
