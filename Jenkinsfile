@@ -6,7 +6,7 @@ def artifactoryRoot = "replibit/elastio/"
 def scriptsDir = ".jenkins/scripts"
 def supported_fs = [ 'ext2', 'ext3', 'ext4', 'xfs']
 
-MAX_CONCURENTS = 11
+MAX_CONCURENTS = 22
 st_locks_count = 0
 
 pipeline
@@ -36,13 +36,12 @@ pipeline
 						name 'DISTRO'
 						values  'empty', //NOTE: for correct draw in OpenBlueOcean
 							'DEB', 'RPM',
-							//'debian8', 'debian9',
-							'debian10', 'debian11', 'debian12',
-							//'amazon2', 'amazon2023',
+							'debian8', 'debian9','debian10', 'debian11', 'debian12',
+							'amazon2', 'amazon2023',
 							'centos7', 'centos8', 'centos9',
-							'alma8', 'alma9'//,
-							//'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37',
-							//'ubuntu2004', 'ubuntu2204'
+							'alma8', 'alma9',
+							'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', // 'fedora38',
+							'ubuntu2004', 'ubuntu2204'
 					}
 				}
 				stages
@@ -60,7 +59,7 @@ pipeline
 //								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('jammy-agent'), user: "rbrepo", agent: "rep-agent"
 //								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bionic-agent'), user: "rbrepo", agent: "rep-agent"
 //								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bullseye-agent'), user: "rbrepo", agent: "rep-agent"
-//									deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('buster-agent'), user: "rbrepo", agent: "rep-agent"
+//								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('buster-agent'), user: "rbrepo", agent: "rep-agent"
 //								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bookworm-agent'), user: "rbrepo", agent: "rep-agent"
 //								uploadArtifacts files: "build-results_deb/*.deb", dst: "${artifactoryRoot}", postfix: "DEB", shortnames: true, retention : false
 //							}
