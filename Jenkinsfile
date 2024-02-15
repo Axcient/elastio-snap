@@ -6,7 +6,7 @@ def artifactoryRoot = "replibit/elastio/"
 def scriptsDir = ".jenkins/scripts"
 def supported_fs = [ 'ext2', 'ext3', 'ext4', 'xfs']
 
-MAX_CONCURENTS = 22
+MAX_CONCURENTS = 11
 st_locks_count = 0
 
 pipeline
@@ -51,18 +51,17 @@ pipeline
 						when { expression { env.DISTRO == "DEB" } }
 						steps
 						{
-							echo "DEB"
-//							node('dr-linbuild')
-//							{
-//								sh "bash ./build.sh ${env.BUILD_NUMBER} deb"
-//								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('focal-agent'), user: "rbrepo", agent: "rep-agent"
-//								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('jammy-agent'), user: "rbrepo", agent: "rep-agent"
-//								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bionic-agent'), user: "rbrepo", agent: "rep-agent"
-//								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bullseye-agent'), user: "rbrepo", agent: "rep-agent"
-//								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('buster-agent'), user: "rbrepo", agent: "rep-agent"
-//								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bookworm-agent'), user: "rbrepo", agent: "rep-agent"
-//								uploadArtifacts files: "build-results_deb/*.deb", dst: "${artifactoryRoot}", postfix: "DEB", shortnames: true, retention : false
-//							}
+							node('dr-linbuild')
+							{
+								sh "bash ./build.sh ${env.BUILD_NUMBER} deb"
+								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('focal-agent'), user: "rbrepo", agent: "rep-agent"
+								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('jammy-agent'), user: "rbrepo", agent: "rep-agent"
+								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bionic-agent'), user: "rbrepo", agent: "rep-agent"
+								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bullseye-agent'), user: "rbrepo", agent: "rep-agent"
+								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('buster-agent'), user: "rbrepo", agent: "rep-agent"
+								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('bookworm-agent'), user: "rbrepo", agent: "rep-agent"
+								uploadArtifacts files: "build-results_deb/*.deb", dst: "${artifactoryRoot}", postfix: "DEB", shortnames: true, retention : false
+							}
 						}
 					}
 
@@ -71,15 +70,14 @@ pipeline
 						when { environment name: 'DISTRO', value: 'RPM' }
 						steps
 						{
-							echo "RPM"
-//							node('dr-linbuild')
-//							{
-//								sh "bash ./build.sh ${env.BUILD_NUMBER} rpm"
-//								deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('ootpa'), user: "rbrepo", agent: "agent"
-//								deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('maipo'), user: "rbrepo", agent: "agent"
-//								deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('plow'), user: "rbrepo", agent: "agent"
-//								uploadArtifacts files: "build-results_rpm/*.rpm", dst: "${artifactoryRoot}", postfix: "RPM", shortnames: true, retention : false
-//							}
+							node('dr-linbuild')
+							{
+								sh "bash ./build.sh ${env.BUILD_NUMBER} rpm"
+								deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('ootpa'), user: "rbrepo", agent: "agent"
+								deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('maipo'), user: "rbrepo", agent: "agent"
+								deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('plow'), user: "rbrepo", agent: "agent"
+								uploadArtifacts files: "build-results_rpm/*.rpm", dst: "${artifactoryRoot}", postfix: "RPM", shortnames: true, retention : false
+							}
 						}
 					}
 
