@@ -36,7 +36,7 @@ pipeline
 						name 'DISTRO'
 						values  'empty', //NOTE: for correct draw in OpenBlueOcean
 							'DEB', 'RPM',
-							'debian8', 'debian9','debian10', 'debian11', 'debian12',
+							'debian9','debian10', 'debian11', 'debian12', // debian8
 							'amazon2', 'amazon2023',
 							'centos7', 'centos8', 'centos9',
 							'alma8', 'alma9',
