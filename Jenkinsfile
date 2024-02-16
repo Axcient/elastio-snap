@@ -27,6 +27,17 @@ pipeline
 	{
 		stage('Matrix')
 		{
+			// Trigger builds only for pull requests and specific branches.
+			when
+			{
+				beforeAgent true
+				anyOf
+				{
+					branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
+					changeRequest()
+				}
+			}
+
 			matrix
 			{
 				axes
@@ -93,7 +104,6 @@ pipeline
 								expression { env.DISTRO != "empty" }
 							}
 						}
-
 						environment {
 							DIST_NAME = get_dist_name(DISTRO)
 							DIST_VER = get_dist_ver(DISTRO)
