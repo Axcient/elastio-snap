@@ -64,6 +64,7 @@ pipeline
 						{
 							node('dr-linbuild')
 							{
+								checkout scm
 								sh "bash ./build.sh ${env.BUILD_NUMBER} deb"
 								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('focal-agent'), user: "rbrepo", agent: "rep-agent"
 								deployDeb dir: "build-results_deb", map_repo: pkg_map_branches('jammy-agent'), user: "rbrepo", agent: "rep-agent"
@@ -83,6 +84,7 @@ pipeline
 						{
 							node('dr-linbuild')
 							{
+								checkout scm
 								sh "bash ./build.sh ${env.BUILD_NUMBER} rpm"
 								deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('ootpa'), user: "rbrepo", agent: "agent"
 								deployRpm dir: "build-results_rpm", map_repo: pkg_map_branches('maipo'), user: "rbrepo", agent: "agent"
