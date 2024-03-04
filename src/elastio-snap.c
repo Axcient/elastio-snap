@@ -917,6 +917,7 @@ static unsigned int elastio_snap_cow_fallocate_percentage_default = 10;
 static unsigned int elastio_snap_max_snap_devices = ELASTIO_SNAP_DEFAULT_SNAP_DEVICES;
 static int elastio_snap_debug = 0;
 static int elastio_snap_read_lock = 0;
+static int elastio_snap_msleep_duration = 10;
 
 module_param_named(may_hook_syscalls, elastio_snap_may_hook_syscalls, int, S_IRUGO);
 MODULE_PARM_DESC(may_hook_syscalls, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
@@ -938,6 +939,9 @@ MODULE_PARM_DESC(debug, "enables debug logging");
 
 module_param_named(read_lock, elastio_snap_read_lock, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(read_lock, "holds write operations during the snapshot reading");
+
+module_param_named(msleep_duration, elastio_snap_msleep_duration, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(msleep_duration, "adds delay before handling a cloned bio request");
 
 /*********************************STRUCT DEFINITIONS*******************************/
 
@@ -3815,6 +3819,9 @@ static int snap_cow_thread(void *data){
 			// NOTE: We can't rely on 'is_failed' value already. The actual error state might have already changed while the BIO was dequeued...
 			if (!dev->sd_ignore_snap_errors || tracer_read_fail_state(dev) == 0)
 			{
+				if (elastio_snap_msleep_duration)
+					msleep(elastio_snap_msleep_duration);
+
 				ret = snap_handle_write_bio(dev, bio);
 				if (ret) {
 					LOG_ERROR(ret, "error handling write bio in kernel thread");
