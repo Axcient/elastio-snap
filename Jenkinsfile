@@ -3,8 +3,24 @@
 @Library('jenkins-utils-lib') _
 
 def artifactoryRoot = "replibit/elastio/"
-def scriptsDir = ".jenkins/scripts"
+
 def supported_fs = [ 'ext2', 'ext3', 'ext4', 'xfs']
+
+def map_rpm_distro = [
+	"centos7" : "maipo",
+	"centos8" : "ootpa",
+	"centos9" : "plow",
+]
+
+def map_deb_distro = [
+	"ubuntu1804" : "bionic-agent",
+	"ubuntu2004" : "focal-agent",
+	"ubuntu2204" : "jammy-agent",
+
+	"debian10" : "buster-agent",
+	"debian11" : "bullseye-agent",
+	"debian12" : "bookworm-agent",
+]
 
 pipeline
 {
@@ -52,6 +68,28 @@ pipeline
 				}
 				stages
 				{
+					stage('Publish packages')
+					{
+						when { anyOf {
+							expression { map_deb_distro[env.DISTRO] != null }
+							expression { map_rpm_distro[env.DISTRO] != null }
+						} }
+						steps
+						{
+							script
+							{
+								if (map_deb_distro[env.DISTRO] != null)
+								{
+									publishDebPackage(artifactoryRoot, map_deb_distro[env.DISTRO])
+								}
+								else
+								{
+									publishRpmPackage(artifactoryRoot, map_rpm_distro[env.DISTRO])
+								}
+							}
+						}
+					}
+
 					stage('Build kernel module')
 					{
 						steps
@@ -60,6 +98,7 @@ pipeline
 							sh "sudo make install"
 						}
 					}
+
 
 					stage('Run tests (loop device)') { steps { runTests(supported_fs, "") } }
 					stage('Run tests on LVM (loop device)') { steps { runTests(supported_fs, "--lvm") } }
@@ -82,13 +121,6 @@ pipeline
 	}
 }
 
-def pkg_map_branches(String repo)
-{
-	return [
-		'^develop.*': repo + '-dev',
-	]
-}
-
 def runTests(def supported_fs, String args)
 {
 	catchError(stageResult: 'FAILURE')
@@ -106,4 +138,37 @@ def runTests(def supported_fs, String args)
 			throw e
 		}
 	}
+}
+
+def pkgMapBranches(String repo)
+{
+	return [
+		'^develop.*': repo + '-dev',
+	]
+}
+
+def publishDebPackage(String artifactoryRoot, String deb)
+{
+	def outDir = "build_results"
+	sh """
+		sudo make deb RELEASE_NUMBER=${env.BUILD_NUMBER}
+		mkdir -p ${outDir} && sudo mv pkgbuild/DEBS/all/*.deb ${outDir} && sudo mv pkgbuild/DEBS/amd64/*.deb ${outDir}
+	"""
+
+	def nameDistro = deb.replace("-agent", "").capitalize()
+	deployDeb dir: outDir, map_repo: pkgMapBranches(deb), user: "rbrepo", agent: "rep-agent"
+	uploadArtifacts files: outDir + "/*.deb", dst: "${artifactoryRoot}", postfix: nameDistro, shortnames: true, retention : true
+}
+
+def publishRpmPackage(String artifactoryRoot, String rpm)
+{
+	def outDir = "build_results"
+	sh """
+		sudo make rpm RELEASE_NUMBER=${env.BUILD_NUMBER}
+		mkdir -p ${outDir} && sudo mv pkgbuild/RPMS/noarch/*.rpm ${outDir} && sudo mv pkgbuild/RPMS/x86_64/*.rpm ${outDir}
+	"""
+
+	def nameDistro = rpm.replace("-agent", "").capitalize()
+	deployRpm dir: outDir, map_repo: pkgMapBranches(rpm), user: "rbrepo", agent: "agent"
+	uploadArtifacts files: outDir + "/*.rpm", dst: "${artifactoryRoot}", postfix: nameDistro, shortnames: true, retention : true
 }
