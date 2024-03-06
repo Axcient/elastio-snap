@@ -97,6 +97,8 @@ echo "bash: ${BASH_VERSION}"
 echo "python: $(python3 --version)"
 echo
 
+rmmod elastio_snap &> /dev/null
+
 dmesg -c &> /dev/null
 >| dmesg.log
 
