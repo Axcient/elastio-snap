@@ -888,12 +888,10 @@ static void bio_free_pages(struct bio *bio){
  * be defined and equal to the 2 bits.
  */
 #define __ELASTIO_SNAP_PASSTHROUGH 28	// set as the last flag bit
-#define __ELASTIO_SNAP_REQ_DRV    27
 #else
 // set as an unused flag in versions older than 4.8
 // set as an unused opcode bit in kernels newer than 4.9
 #define __ELASTIO_SNAP_PASSTHROUGH 30
-#define __ELASTIO_SNAP_REQ_DRV    29
 #endif
 #define ELASTIO_SNAP_PASSTHROUGH (1ULL << __ELASTIO_SNAP_PASSTHROUGH)
 
@@ -904,11 +902,6 @@ static void bio_free_pages(struct bio *bio){
 #define BIO_MAX_PAGES BIO_MAX_VECS
 #endif
 
-#ifndef REQ_DRV
-// was added in v4.15
-#define REQ_DRV (1U << __ELASTIO_SNAP_REQ_DRV)
-#endif
-
 //global module parameters
 static int elastio_snap_may_hook_syscalls = 0;
 static unsigned long elastio_snap_cow_ext_buf_size = sizeof(struct fiemap_extent) * 1024;
@@ -916,7 +909,6 @@ static unsigned long elastio_snap_cow_max_memory_default = (300 * 1024 * 1024);
 static unsigned int elastio_snap_cow_fallocate_percentage_default = 10;
 static unsigned int elastio_snap_max_snap_devices = ELASTIO_SNAP_DEFAULT_SNAP_DEVICES;
 static int elastio_snap_debug = 0;
-static int elastio_snap_read_lock = 0;
 static int elastio_snap_msleep_duration = 10;
 
 module_param_named(may_hook_syscalls, elastio_snap_may_hook_syscalls, int, S_IRUGO);
@@ -936,9 +928,6 @@ MODULE_PARM_DESC(max_snap_devices, "maximum number of tracers available");
 
 module_param_named(debug, elastio_snap_debug, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "enables debug logging");
-
-module_param_named(read_lock, elastio_snap_read_lock, int, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(read_lock, "holds write operations during the snapshot reading");
 
 module_param_named(msleep_duration, elastio_snap_msleep_duration, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(msleep_duration, "adds delay before handling a cloned bio request");
@@ -3739,25 +3728,17 @@ static int snap_mrf_thread(void *data){
 		//wait for a bio to process or a kthread_stop call
 		wait_event_interruptible(bq->event, kthread_should_stop() || !bio_queue_empty(bq));
 		if(bio_queue_empty(bq)) continue;
-		if (elastio_snap_read_lock) {
-			cond_resched();
-			continue;
-		}
 
 		//safely dequeue a bio
 		bio = bio_queue_dequeue(bq);
 
-		if (!elastio_snap_bio_op_flagged(bio, REQ_DRV)) {
-			//submit the original bio to the block IO layer
-			elastio_snap_bio_op_set_flag(bio, ELASTIO_SNAP_PASSTHROUGH);
-			ret = elastio_snap_call_mrf(dev->sd_orig_mrf, bio);
+		//submit the original bio to the block IO layer
+		elastio_snap_bio_op_set_flag(bio, ELASTIO_SNAP_PASSTHROUGH);
+
+		ret = elastio_snap_call_mrf(dev->sd_orig_mrf, bio);
 #ifdef HAVE_MAKE_REQUEST_FN_INT
-			if(ret) generic_make_request(bio);
+		if(ret) generic_make_request(bio);
 #endif
-		} else {
-			// submit it back to tracing_mrf
-			elastio_snap_submit_bio(bio);
-		}
 	}
 
 	return 0;
@@ -4197,19 +4178,7 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 		}
 
 		if(tracer_should_trace_bio(dev, bio)){
-
-			if(test_bit(SNAPSHOT, &dev->sd_state)) {
-				if (!elastio_snap_bio_op_flagged(bio, REQ_DRV)) {
-					elastio_snap_bio_op_set_flag(bio, REQ_DRV);
-					bio_queue_add(&dev->sd_orig_bios, bio);
-					goto out;
-				} else {
-					// bio returned from the queue
-					elastio_snap_bio_op_clear_flag(bio, REQ_DRV);
-				}
-
-				ret = snap_trace_bio(dev, bio);
-			}
+			if(test_bit(SNAPSHOT, &dev->sd_state)) ret = snap_trace_bio(dev, bio);
 			else ret = inc_trace_bio(dev, bio);
 			goto out;
 		}
