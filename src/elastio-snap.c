@@ -1053,6 +1053,7 @@ struct snap_device{
 	atomic64_t sd_submitted_cnt; //count of read clones submitted to underlying driver
 	atomic64_t sd_received_cnt; //count of read clones submitted to underlying driver
 	atomic64_t sd_processed_cnt; //count of read clones processed in snap_cow_thread()
+	atomic64_t sd_read_lock_resched;
 	atomic_t sd_read_lock;
 };
 
@@ -3787,6 +3788,7 @@ static int snap_cow_thread(void *data){
 
 			if (atomic_read(&dev->sd_read_lock)) {
 				bio_queue_add(&dev->sd_cow_bios, bio);
+				atomic64_inc(&dev->sd_read_lock_resched);
 				cond_resched();
 				continue;
 			}
@@ -4488,6 +4490,7 @@ static void __tracer_init(struct snap_device *dev){
 	LOG_DEBUG("initializing tracer");
 	atomic_set(&dev->sd_fail_code, 0);
 	atomic_set(&dev->sd_read_lock, 0);
+	atomic64_set(&dev->sd_read_lock_resched, 0);
 	bio_queue_init(&dev->sd_cow_bios);
 	bio_queue_init(&dev->sd_orig_bios);
 	sset_queue_init(&dev->sd_pending_ssets);
@@ -6638,6 +6641,7 @@ static int elastio_snap_proc_show(struct seq_file *m, void *v){
 		seq_printf(m, "\t\t\t\"state\": %lu,\n", dev->sd_state);
 		seq_printf(m, "\t\t\t\"ignore_errors\": %i,\n", dev->sd_ignore_snap_errors);
 		seq_printf(m, "\t\t\t\"cow_on_bdev\": %s\n", test_bit(COW_ON_BDEV, &dev->sd_cow_state) ? "true" : "false");
+		seq_printf(m, "\t\t\t\"sd_read_lock_resched\": %lld\n", atomic64_read(&dev->sd_read_lock_resched));
 		seq_printf(m, "\t\t}");
 	}
 
