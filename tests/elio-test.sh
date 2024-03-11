@@ -76,6 +76,9 @@ else
     export TEST_FS
 fi
 
+# Allow XFS < 300MB
+export TEST_DIR=1 TEST_DEV=1 QA_CHECK_FS=1
+
 packman="apt-get"
 which yum >/dev/null && packman=yum
 which pip3 >/dev/null || $packman install -y python3-pip
@@ -93,6 +96,8 @@ echo "gcc: $(gcc --version | awk 'NR==1 {print $3}')"
 echo "bash: ${BASH_VERSION}"
 echo "python: $(python3 --version)"
 echo
+
+rmmod elastio_snap &> /dev/null
 
 dmesg -c &> /dev/null
 >| dmesg.log

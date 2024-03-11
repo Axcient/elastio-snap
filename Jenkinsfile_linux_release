@@ -1,3 +1,5 @@
+///NOTE: previous build stores in branch feature/old_build_system
+
 @Library('jenkins-utils-lib') _
 
 pipeline {
@@ -80,12 +82,13 @@ def deployToRpmRepos(String branch, String build, String deploy_to)
 
 def deploy(String[] repos, String branch, String build, Boolean deploy_to_prod, String repo_type)
 {
-	def subfolder = repo_type.toUpperCase();
-	downloadFileFromArtifactory(
-		'slc_artifactory',
-		"replibit/elastio/$branch/$build/$subfolder/*.$repo_type",
-		"./$subfolder/");
 	repos.each {
+		def subfolder = it.replace("-agent", "").capitalize();
+		downloadFileFromArtifactory(
+			'slc_artifactory',
+			"replibit/elastio/$branch/$build/$subfolder/*.$repo_type",
+			"./$subfolder/");
+
 		def repo = deploy_to_prod ? it : it + '-stg';
 		println "Uploading packages from replibit/agent/$branch/$build/$subfolder/*.$repo_type to $repo";
 		deploy_map = [
