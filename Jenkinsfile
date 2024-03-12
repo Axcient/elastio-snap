@@ -151,7 +151,7 @@ def publishDebPackage(String artifactoryRoot, String deb)
 {
 	def outDir = "build_results"
 	sh """
-		sudo make deb RELEASE_NUMBER=${env.BUILD_NUMBER}
+		sudo make deb RELEASE_NUMBER=${env.BUILD_NUMBER}~`lsb_release -s -c`
 		mkdir -p ${outDir} && sudo mv pkgbuild/DEBS/all/*.deb ${outDir} && sudo mv pkgbuild/DEBS/amd64/*.deb ${outDir}
 	"""
 
