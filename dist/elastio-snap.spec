@@ -318,7 +318,7 @@ make utils
 # Not needs to be installed: we expect the
 # user to generate it during the build
 rm -f src/kernel-config.h
-
+rm -rf src/configure-tests/feature-tests/build/
 
 %install
 # Install library
