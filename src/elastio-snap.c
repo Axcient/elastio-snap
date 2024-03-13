@@ -146,6 +146,9 @@ struct request_queue* (*elastio_blk_alloc_queue)(int node_id) = (BLK_ALLOC_QUEUE
 struct super_block* (*elastio_snap_get_super)(struct block_device *) = (GET_SUPER_ADDR != 0) ?
 	(struct super_block* (*)(struct block_device*)) (GET_SUPER_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
+struct super_block* (*elastio_snap_user_get_super)(dev_t, bool) = (USER_GET_SUPER_ADDR != 0) ?
+	(struct super_block* (*)(dev_t, bool)) (USER_GET_SUPER_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
+
 #if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4)
 struct block_device *elastio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
 	int r;
@@ -4405,7 +4408,11 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 static int __tracer_transition_tracing(struct snap_device *dev, struct block_device *bdev, const struct block_device_operations *new_ops, struct snap_device **dev_ptr, bool start){
 #endif
 	int ret;
+#ifdef HAVE_GET_SUPER
 	struct super_block *origsb = elastio_snap_get_super(bdev);
+#else
+	struct super_block *origsb = elastio_snap_user_get_super(bdev->bd_dev, false);
+#endif
 #ifdef HAVE_THAW_BDEV_INT
 	struct super_block *sb = NULL;
 #endif
@@ -4637,7 +4644,12 @@ static int __tracer_destroy_cow(struct snap_device *dev, int close_method){
 
 
 static int file_is_on_bdev(const struct file *file, struct block_device *bdev) {
+#ifdef HAVE_GET_SUPER
 	struct super_block *sb = elastio_snap_get_super(bdev);
+#else
+	struct super_block *sb = elastio_snap_user_get_super(bdev->bd_dev, false);
+#endif
+
 	int ret = 0;
 	if (sb) {
 		ret = ((elastio_snap_get_mnt(file))->mnt_sb == sb);
@@ -5440,7 +5452,11 @@ static int __verify_bdev_writable(const char *bdev_path, int *out){
 		return PTR_ERR(bdev);
 	}
 
+#ifdef HAVE_GET_SUPER
 	sb = elastio_snap_get_super(bdev);
+#else
+	sb = elastio_snap_user_get_super(bdev->bd_dev, false);
+#endif
 	if(sb){
 		writable = !(sb->s_flags & MS_RDONLY);
 		drop_super(sb);
@@ -6132,7 +6148,11 @@ static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx
 	task_work_flush();
 
 	//if we went dormant, but the block device is still mounted somewhere, goto fail state
+#ifdef HAVE_GET_SUPER
 	sb = elastio_snap_get_super(dev->sd_base_dev);
+#else
+	sb = elastio_snap_user_get_super(dev->sd_base_dev->bd_dev, false);
+#endif
 	if(sb){
 		if(!(sb->s_flags & MS_RDONLY)){
 			LOG_ERROR(-EIO, "device still mounted after umounting cow file's file-system. entering error state");
