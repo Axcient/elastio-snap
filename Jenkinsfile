@@ -74,20 +74,7 @@ pipeline
 							expression { map_deb_distro[env.DISTRO] != null }
 							expression { map_rpm_distro[env.DISTRO] != null }
 						} }
-						steps
-						{
-							script
-							{
-								if (map_deb_distro[env.DISTRO] != null)
-								{
-									publishDebPackage(artifactoryRoot, map_deb_distro[env.DISTRO])
-								}
-								else
-								{
-									publishRpmPackage(artifactoryRoot, map_rpm_distro[env.DISTRO])
-								}
-							}
-						}
+						steps { publishPackage(artifactoryRoot, map_deb_distro[env.DISTRO], map_rpm_distro[env.DISTRO]) }
 					}
 
 					stage('Build kernel module')
@@ -171,4 +158,19 @@ def publishRpmPackage(String artifactoryRoot, String rpm)
 	def nameDistro = rpm.replace("-agent", "").capitalize()
 	deployRpm dir: outDir, map_repo: pkgMapBranches(rpm), user: "rbrepo", agent: "agent"
 	uploadArtifacts files: outDir + "/*.rpm", dst: "${artifactoryRoot}", postfix: nameDistro, shortnames: true, retention : true
+}
+
+def publishPackage(String artifactoryRoot, String deb, String rpm)
+{
+	catchError(stageResult: 'FAILURE')
+	{
+		if (deb != null)
+		{
+			publishDebPackage(artifactoryRoot, deb)
+		}
+		else if (rpm != null)
+		{
+			publishRpmPackage(artifactoryRoot, rpm)
+		}
+	}
 }
