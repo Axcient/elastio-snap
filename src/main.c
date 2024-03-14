@@ -1016,7 +1016,6 @@ static unsigned long elastio_snap_cow_max_memory_default = (300 * 1024 * 1024);
 static unsigned int elastio_snap_cow_fallocate_percentage_default = 10;
 static unsigned int elastio_snap_max_snap_devices = ELASTIO_SNAP_DEFAULT_SNAP_DEVICES;
 static int elastio_snap_debug = 0;
-static int elastio_snap_msleep_duration = 10;
 
 module_param_named(may_hook_syscalls, elastio_snap_may_hook_syscalls, int, S_IRUGO);
 MODULE_PARM_DESC(may_hook_syscalls, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
@@ -1036,18 +1035,6 @@ MODULE_PARM_DESC(max_snap_devices, "maximum number of tracers available");
 module_param_named(debug, elastio_snap_debug, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "enables debug logging");
 
-module_param_named(msleep_duration, elastio_snap_msleep_duration, int, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(msleep_duration, "adds delay before handling a cloned bio request");
-
-static int param_set_bio_stats(const char *buffer, const struct kernel_param *kp);
-
-static const struct kernel_param_ops param_ops_bio_stats = {
-	.set = param_set_bio_stats,
-	.get = param_get_uint,
-};
-
-static int bio_stats;
-module_param_cb(bio_show_stats, &param_ops_bio_stats, &bio_stats, 0644);
 /*********************************STRUCT DEFINITIONS*******************************/
 
 struct sector_set{
@@ -4046,9 +4033,6 @@ static int snap_cow_thread(void *data){
 			// NOTE: We can't rely on 'is_failed' value already. The actual error state might have already changed while the BIO was dequeued...
 			if (!dev->sd_ignore_snap_errors || tracer_read_fail_state(dev) == 0)
 			{
-				if (elastio_snap_msleep_duration)
-					msleep(elastio_snap_msleep_duration);
-
 				ret = snap_handle_write_bio(dev, bio);
 				if (ret) {
 					LOG_ERROR(ret, "error handling write bio in kernel thread");
