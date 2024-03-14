@@ -984,7 +984,7 @@ static unsigned long elastio_snap_cow_max_memory_default = (300 * 1024 * 1024);
 static unsigned int elastio_snap_cow_fallocate_percentage_default = 10;
 static unsigned int elastio_snap_max_snap_devices = ELASTIO_SNAP_DEFAULT_SNAP_DEVICES;
 static int elastio_snap_debug = 0;
-static int elastio_snap_msleep_duration = 0;
+static int elastio_snap_msleep_duration = 10;
 
 module_param_named(may_hook_syscalls, elastio_snap_may_hook_syscalls, int, S_IRUGO);
 MODULE_PARM_DESC(may_hook_syscalls, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
@@ -1146,8 +1146,6 @@ struct snap_device{
 	atomic64_t sd_submitted_cnt; //count of read clones submitted to underlying driver
 	atomic64_t sd_received_cnt; //count of read clones submitted to underlying driver
 	atomic64_t sd_processed_cnt; //count of read clones processed in snap_cow_thread()
-	atomic64_t sd_read_lock_resched;
-	atomic_t sd_read_lock;
 };
 
 static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
@@ -3982,7 +3980,6 @@ static int snap_cow_thread(void *data){
 		if(!is_failed && tracer_read_fail_state(dev)){
 			LOG_DEBUG("error detected in cow thread, cleaning up cow");
 			is_failed = 1;
-			atomic_set(&dev->sd_read_lock, 0);
 
 			if(dev->sd_cow) cow_free_members(dev->sd_cow);
 		}
@@ -3997,13 +3994,6 @@ static int snap_cow_thread(void *data){
 			//if we're in the fail state just send back an IO error and free the bio
 			if(is_failed){
 				elastio_snap_bio_endio(bio, wrap_err_io(dev)); //end the bio with an IO error
-				continue;
-			}
-
-			if (atomic_read(&dev->sd_read_lock)) {
-				bio_queue_add(&dev->sd_cow_bios, bio);
-				atomic64_inc(&dev->sd_read_lock_resched);
-				cond_resched();
 				continue;
 			}
 
@@ -4034,11 +4024,9 @@ static int snap_cow_thread(void *data){
 				}
 			}
 
-			atomic_dec(&dev->sd_read_lock);
 			atomic64_inc(&dev->sd_processed_cnt);
 			bio_free_clone(bio);
 		}
-
 	}
 
 	LOG_DEBUG("snap_cow_thread() done.");
@@ -4149,7 +4137,6 @@ static void __on_bio_read_complete(struct bio *bio, int err){
 #endif
 
 	//queue cow bio for processing by kernel thread
-	atomic_inc(&dev->sd_read_lock);
 	bio_queue_add(&dev->sd_cow_bios, bio);
 	atomic64_inc(&dev->sd_received_cnt);
 	smp_wmb();
@@ -4756,8 +4743,6 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 static void __tracer_init(struct snap_device *dev){
 	LOG_DEBUG("initializing tracer");
 	atomic_set(&dev->sd_fail_code, 0);
-	atomic_set(&dev->sd_read_lock, 0);
-	atomic64_set(&dev->sd_read_lock_resched, 0);
 	bio_queue_init(&dev->sd_cow_bios);
 	bio_queue_init(&dev->sd_orig_bios);
 	sset_queue_init(&dev->sd_pending_ssets);
@@ -6937,8 +6922,7 @@ static int elastio_snap_proc_show(struct seq_file *m, void *v){
 
 		seq_printf(m, "\t\t\t\"state\": %lu,\n", dev->sd_state);
 		seq_printf(m, "\t\t\t\"ignore_errors\": %i,\n", dev->sd_ignore_snap_errors);
-		seq_printf(m, "\t\t\t\"cow_on_bdev\": %s,\n", test_bit(COW_ON_BDEV, &dev->sd_cow_state) ? "true" : "false");
-		seq_printf(m, "\t\t\t\"sd_read_lock_resched\": %lld\n", (int64_t) atomic64_read(&dev->sd_read_lock_resched));
+		seq_printf(m, "\t\t\t\"cow_on_bdev\": %s\n", test_bit(COW_ON_BDEV, &dev->sd_cow_state) ? "true" : "false");
 		seq_printf(m, "\t\t}");
 	}
 
