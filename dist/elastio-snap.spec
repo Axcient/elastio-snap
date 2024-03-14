@@ -114,7 +114,7 @@
 
 
 Name:            elastio-snap
-Version:         0.12.2
+Version:         0.12.3
 Release:         %{_release}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -631,6 +631,25 @@ rm -rf %{buildroot}
 
 
 %changelog
+
+* Thu Mar 14 2024 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.3
+- [RA-4971] Implement support of Linux kernel v6.7
+- [RA-4972] clean config build dir
+- [RA-4866] Install udev rule for Redhat < 8
+- [RA-4831] Catch error on publish package
+- [RA-4831] Fix upload deb packages
+- [RA-4831] Build on esxi
+- [RA-4831] checkout for linux nodes
+- [RA-4831] Add tests on build
+- [RA-4813] Add support of Linux Kernel v6.5
+- [RA-0000] Upload elastio for bookworm
+- [RA-4006] Prevent uploading to staging on build develop.
+- [RA-4006] Safe upload script.
+- [RA-4006] ls downloaded files
+- [RA-4006] fix path
+- [RA-4006] fix ls
+- [RA-4006] fix path
+- [RA-4006] Remove debug code
 
 * Fri Apr 7 2023 Stanislav Barantsev <sbarantsev@elastio.com> - 0.12.2
 - Flush bio requests before module unload
