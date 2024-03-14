@@ -143,8 +143,20 @@ struct request_queue* (*elastio_blk_alloc_queue)(int node_id) = (BLK_ALLOC_QUEUE
 	(struct request_queue* (*)(int node_id)) (BLK_ALLOC_QUEUE_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 #endif
 
-struct super_block* (*elastio_snap_get_super)(struct block_device *) = (GET_SUPER_ADDR != 0) ?
+struct super_block* (*__elastio_snap_get_super)(struct block_device *) = (GET_SUPER_ADDR != 0) ?
 	(struct super_block* (*)(struct block_device*)) (GET_SUPER_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
+
+struct super_block* (*__elastio_snap_user_get_super)(dev_t, bool) = (USER_GET_SUPER_ADDR != 0) ?
+	(struct super_block* (*)(dev_t, bool)) (USER_GET_SUPER_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
+
+struct super_block *elastio_snap_get_super(struct block_device *bdev)
+{
+#ifdef HAVE_GET_SUPER
+	return __elastio_snap_get_super(bdev);
+#else
+	return __elastio_snap_user_get_super(bdev->bd_dev, false);
+#endif
+}
 
 #if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4)
 struct block_device *elastio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
