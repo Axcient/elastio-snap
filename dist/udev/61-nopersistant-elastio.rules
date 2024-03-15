@@ -1,0 +1,3 @@
+# Skip elastio devices from creating persistant links.
+# Overwrite 60-persistent-storage.rules
+KERNEL=="elastio-snap*", ENV{ID_FS_TYPE}:="", ENV{ID_FS_UUID_ENC}:=""
