@@ -74,15 +74,24 @@ pipeline
 							expression { map_deb_distro[env.DISTRO] != null }
 							expression { map_rpm_distro[env.DISTRO] != null }
 						} }
-						steps { publishPackage(artifactoryRoot, map_deb_distro[env.DISTRO], map_rpm_distro[env.DISTRO]) }
+						steps
+						{
+							lock(label: 'elastio-vmx', quantity: 1, resource : null)
+							{
+								publishPackage(artifactoryRoot, map_deb_distro[env.DISTRO], map_rpm_distro[env.DISTRO])
+							}
+						}
 					}
 
 					stage('Build kernel module')
 					{
 						steps
 						{
-							sh "sudo make"
-							sh "sudo make install"
+							lock(label: 'elastio-vmx', quantity: 1, resource : null)
+							{
+								sh "sudo make"
+								sh "sudo make install"
+							}
 						}
 					}
 
