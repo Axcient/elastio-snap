@@ -944,6 +944,15 @@ MODULE_PARM_DESC(debug, "enables debug logging");
 module_param_named(msleep_duration, elastio_snap_msleep_duration, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(msleep_duration, "adds delay before handling a cloned bio request");
 
+static int param_set_bio_stats(const char *buffer, const struct kernel_param *kp);
+
+static const struct kernel_param_ops param_ops_bio_stats = {
+	.set = param_set_bio_stats,
+	.get = param_get_uint,
+};
+
+static int bio_stats;
+module_param_cb(bio_show_stats, &param_ops_bio_stats, &bio_stats, 0644);
 /*********************************STRUCT DEFINITIONS*******************************/
 
 struct sector_set{
@@ -998,6 +1007,12 @@ struct tracing_ops {
 };
 #endif
 
+#ifdef REQ_OP_LAST
+#define BIO_STATS_MAX_ELEMENTS REQ_OP_LAST
+#else
+#define BIO_STATS_MAX_ELEMENTS 64
+#endif
+
 struct cow_section{
 	char has_data; //zero if this section has mappings (on file or in memory)
 	unsigned long usage; //counter that keeps track of how often this section is used
@@ -1031,6 +1046,8 @@ struct snap_device{
 	unsigned long sd_cow_state; //current state of cow file
 	unsigned long sd_falloc_size; //space allocated to the cow file (in megabytes)
 	unsigned long sd_cache_size; //maximum cache size (in bytes)
+	unsigned long sd_bio_stats_total[BIO_STATS_MAX_ELEMENTS]; // histogram of all bio requests traced
+	unsigned long sd_bio_stats_traced[BIO_STATS_MAX_ELEMENTS]; // histogram of processed bio requests
 	atomic_t sd_refs; //number of users who have this device open
 	atomic_t sd_fail_code; //failure return code
 	sector_t sd_sect_off; //starting sector of base block device
@@ -1197,6 +1214,39 @@ static asmlinkage long (*orig_umount)(char __user *name, int flags);
 #ifdef HAVE_SYS_OLDUMOUNT
 static asmlinkage long (*orig_oldumount)(char __user *);
 #endif
+
+static int param_set_bio_stats(const char *buffer, const struct kernel_param *kp)
+{
+	int i, minor;
+	struct snap_device *dev;
+
+	if (sscanf(buffer, "%d", &minor) != 1) return -EINVAL;
+
+	dev = snap_devices[minor];
+	if (!dev) return -ENODEV;
+
+	LOG_DEBUG("+-------------------------------+");
+	LOG_DEBUG("| Total bio request statistics  |");
+	LOG_DEBUG("+--------+----------------------+");
+	LOG_DEBUG("|  Type  |        Count         |");
+	LOG_DEBUG("+--------+----------------------+");
+
+	for (i = 0; i < BIO_STATS_MAX_ELEMENTS; i++) {
+		if (dev->sd_bio_stats_total[i])
+			LOG_DEBUG("|   %-3d  |          %-11lu |", i, dev->sd_bio_stats_total[i]);
+	}
+
+	LOG_DEBUG("+--------+----------------------+");
+	LOG_DEBUG("| Traced bio request statistics |");
+	LOG_DEBUG("+--------+----------------------+");
+	for (i = 0; i < BIO_STATS_MAX_ELEMENTS; i++) {
+		if (dev->sd_bio_stats_traced[i])
+			LOG_DEBUG("|   %-3d  |          %-11lu |", i, dev->sd_bio_stats_traced[i]);
+	}
+
+	LOG_DEBUG("+--------+----------------------+");
+	return 0;
+}
 
 /*******************************ATOMIC FUNCTIONS******************************/
 
@@ -4046,6 +4096,8 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 #endif
 	}
 
+	dev->sd_bio_stats_traced[bio_op(bio)]++;
+
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
 	end_sect = ROUND_UP(bio_sector(bio) + (bio_size(bio) / SECTOR_SIZE) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
@@ -4129,6 +4181,8 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio){
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
 
+	dev->sd_bio_stats_traced[bio_op(bio)]++;
+
 	if (!test_bit(COW_ON_BDEV, &dev->sd_cow_state)){
 		// if the cow is non-resident, then we don't need to check if
 		// the bio is for the cow file.
@@ -4191,10 +4245,13 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 	make_request_fn *orig_mrf = NULL;
 
 	MAYBE_UNUSED(ret);
-
 	smp_rmb();
 	tracer_for_each(dev, i){	// for each snap device
-		if(!dev || test_bit(UNVERIFIED, &dev->sd_state) || !tracer_matches_bio(dev, bio)) continue;
+		if(!dev || test_bit(UNVERIFIED, &dev->sd_state)) continue;
+
+		dev->sd_bio_stats_total[bio_op(bio)]++;
+
+		if (!tracer_matches_bio(dev, bio)) continue;
 
 		orig_mrf = dev->sd_orig_mrf;
 		if(elastio_snap_bio_op_flagged(bio, ELASTIO_SNAP_PASSTHROUGH)){
