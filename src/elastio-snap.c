@@ -4096,7 +4096,9 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 #endif
 	}
 
+#ifdef HAVE_ENUM_REQ_OPF
 	dev->sd_bio_stats_traced[bio_op(bio)]++;
+#endif
 
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
@@ -4181,7 +4183,9 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio){
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
 
+#ifdef HAVE_ENUM_REQ_OPF
 	dev->sd_bio_stats_traced[bio_op(bio)]++;
+#endif
 
 	if (!test_bit(COW_ON_BDEV, &dev->sd_cow_state)){
 		// if the cow is non-resident, then we don't need to check if
@@ -4249,7 +4253,9 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 	tracer_for_each(dev, i){	// for each snap device
 		if(!dev || test_bit(UNVERIFIED, &dev->sd_state)) continue;
 
+#ifdef HAVE_ENUM_REQ_OPF
 		dev->sd_bio_stats_total[bio_op(bio)]++;
+#endif
 
 		if (!tracer_matches_bio(dev, bio)) continue;
 
@@ -6710,7 +6716,7 @@ static int elastio_snap_proc_show(struct seq_file *m, void *v){
 		seq_printf(m, "\t\t\t\"state\": %lu,\n", dev->sd_state);
 		seq_printf(m, "\t\t\t\"ignore_errors\": %i,\n", dev->sd_ignore_snap_errors);
 		seq_printf(m, "\t\t\t\"cow_on_bdev\": %s,\n", test_bit(COW_ON_BDEV, &dev->sd_cow_state) ? "true" : "false");
-		seq_printf(m, "\t\t\t\"sd_read_lock_resched\": %lld\n", atomic64_read(&dev->sd_read_lock_resched));
+		seq_printf(m, "\t\t\t\"sd_read_lock_resched\": %lld\n", (int64_t) atomic64_read(&dev->sd_read_lock_resched));
 		seq_printf(m, "\t\t}");
 	}
 
