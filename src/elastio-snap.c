@@ -4096,7 +4096,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 #endif
 	}
 
-#ifdef HAVE_ENUM_REQ_OPF
+#if defined HAVE_ENUM_REQ_OPF || defined HAVE_ENUM_REQ_OP
 	dev->sd_bio_stats_traced[bio_op(bio)]++;
 #endif
 
@@ -4183,7 +4183,7 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio){
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
 
-#ifdef HAVE_ENUM_REQ_OPF
+#if defined HAVE_ENUM_REQ_OPF || defined HAVE_ENUM_REQ_OP
 	dev->sd_bio_stats_traced[bio_op(bio)]++;
 #endif
 
@@ -4253,7 +4253,7 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 	tracer_for_each(dev, i){	// for each snap device
 		if(!dev || test_bit(UNVERIFIED, &dev->sd_state)) continue;
 
-#ifdef HAVE_ENUM_REQ_OPF
+#if defined HAVE_ENUM_REQ_OPF || defined HAVE_ENUM_REQ_OP
 		dev->sd_bio_stats_total[bio_op(bio)]++;
 #endif
 
