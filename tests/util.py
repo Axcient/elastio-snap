@@ -11,27 +11,28 @@ import subprocess
 import sys
 import time
 
+TIMEOUT_SCALE - 2
 
 def mount(device, path, opts=None):
     cmd = ["mount", device, path]
     if opts:
         cmd += ["-o", opts]
 
-    subprocess.check_call(cmd, timeout=10)
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*10)
 
 
 def unmount(path, retry_on_dev_busy=True):
     cmd = ["umount", path]
     # subprocess.run is introduced in Python 3.5
     if not retry_on_dev_busy or sys.version_info <= (3, 5):
-        subprocess.check_call(cmd, timeout=20)
+        subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*20)
     else:
         # The retries on device busy error are necessary on Ubuntu 22.04, kernel 5.15
         # for the tests test_destroy_unverified_incremental and test_destroy_unverified_snapshot.
         # See https://github.com/elastio/elastio-snap/issues/138
         retries = 3
         for retry in range(retries):
-            p = subprocess.run(cmd, timeout=20, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p = subprocess.run(cmd, timeout=TIMEOUT_SCALE*20, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if p.returncode == 0:
                 break
             elif retry + 1 < retries and "busy" not in p.stderr.decode():
@@ -48,7 +49,7 @@ def dd(ifile, ofile, count, **kwargs):
     for k, v in kwargs.items():
         cmd.append("{}={}".format(k, v))
 
-    subprocess.check_call(cmd, timeout=240)
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*240)
 
 def md5sum(path):
     md5 = hashlib.md5()
@@ -61,11 +62,11 @@ def md5sum(path):
 
 def settle(timeout=20):
     cmd = ["udevadm", "settle", "-t", "{}".format(timeout)]
-    subprocess.check_call(cmd, timeout=(timeout + 10))
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*(timeout + 10))
 
 def partprobe(device, timeout=30):
         cmd = ["partprobe", device]
-        subprocess.check_call(cmd, timeout=timeout)
+        subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*timeout)
 
 def udev_start_exec_queue():
     cmd = ["udevadm", "control", "--start-exec-queue"]
@@ -90,7 +91,7 @@ def partition(disk, part_count = 0):
         if end + part_size_percent > 100: end = 100
         cmd.append("mkpart " + part_type + " {}% {}%".format(start, end))
 
-    subprocess.check_call(cmd, timeout=30)
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*30)
     partprobe(disk)
     settle()
 
@@ -99,7 +100,7 @@ def partition(disk, part_count = 0):
 
 def loop_create(path, part_count = 0):
     cmd = ["losetup", "--find", "--show", "--partscan", path]
-    loopdev = subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8")
+    loopdev = subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8")
 
     if part_count > 0:
         partition(loopdev, part_count)
@@ -109,7 +110,7 @@ def loop_create(path, part_count = 0):
 
 def loop_destroy(loop):
     cmd = ["losetup", "-d", loop]
-    subprocess.check_call(cmd, timeout=10)
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*10)
 
 
 def mkfs(device, fs="ext4"):
@@ -119,11 +120,11 @@ def mkfs(device, fs="ext4"):
         # Disable lazy init to facilitate that no additional IO will take place during tests
         cmd = ["mkfs." + fs, "-F", "-E", "lazy_itable_init=0,lazy_journal_init=0", device]
 
-    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=TIMEOUT_SCALE*120)
 
 def xfs_repair_version():
     cmd = ["xfs_repair", "-V"]
-    version = subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8").split(" ")[2]
+    version = subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8").split(" ")[2]
     return version
 
 def fsck(image, fs="ext4"):
@@ -132,20 +133,20 @@ def fsck(image, fs="ext4"):
     else:
         cmd = ["fsck." + fs, "-n", "-f", "-v", image]
 
-    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=TIMEOUT_SCALE*10)
 
 def update_img(device, cow_file, bkp):
     cmd = ["../utils/update-img", device, cow_file, bkp]
-    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, timeout=180)
+    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, timeout=TIMEOUT_SCALE*180)
 
 def mktemp_dir():
     cmd = ["mktemp", "-d"]
-    temp_dir = subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8")
+    temp_dir = subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8")
     return temp_dir
 
 def file_lines(file):
     cmd = ["wc", "-l", file]
-    lines = int(subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8").split(" ")[0])
+    lines = int(subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8").split(" ")[0])
     return lines
 
 def dev_size_mb(device):
@@ -161,7 +162,7 @@ def get_partitions(disk):
     # loop0p1
     # but sometimes the order is random
     cmd = ["lsblk", disk, "-l", "-o", "NAME", "-n"]
-    disk_and_parts = subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8").splitlines()
+    disk_and_parts = subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8").splitlines()
     disk_and_parts.sort()
     parts = ['/dev/{}'.format(part) for part in disk_and_parts]
     parts.remove(disk)
@@ -175,12 +176,12 @@ def get_last_partition(disk):
 
 def get_disk_by_partition(part):
     cmd = ["lsblk", "-ndo", "pkname", part]
-    return subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8")
+    return subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8")
 
 
 def wipefs(device):
     cmd = ["wipefs", "--all", "--force", "--quiet", device]
-    subprocess.check_call(cmd, timeout=1220)
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*1220)
 
 
 def parted_create_lvm_raid_partitions(devices, kind):
@@ -196,11 +197,11 @@ def parted_create_lvm_raid_partitions(devices, kind):
     for device in devices:
         wipefs(device)
         cmd = ["parted", "--script", device, "mklabel gpt"]
-        subprocess.check_call(cmd, timeout=30)
+        subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*30)
         cmd = ["parted", "--script", device, "mkpart '" + part_type + "' 0% 100%"]
-        subprocess.check_call(cmd, timeout=30)
+        subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*30)
         cmd = ["parted", "--script", device, "set 1 " + kind + " on"]
-        subprocess.check_call(cmd, timeout=30)
+        subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*30)
         partprobe(device)
         settle()
         part = get_last_partition(device)
@@ -216,10 +217,10 @@ def mdadm_zero_superblock(partition):
     cmd = ["mdadm", "--zero-superblock", partition]
     # subprocess.run is introduced in Python 3.5
     if sys.version_info <= (3, 5):
-        subprocess.check_call(cmd, timeout=10)
+        subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*10)
     else:
         # We don't care about the possible errors
-        subprocess.run(cmd, timeout=10, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(cmd, timeout=TIMEOUT_SCALE*10, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def assemble_mirror_lvm(devices, seed):
@@ -229,44 +230,44 @@ def assemble_mirror_lvm(devices, seed):
     # 2. Create physical volume.  The command looks like 'pvcreate /dev/sdb1 /dev/sdc1'
     cmd = ["pvcreate"]
     cmd += partitions
-    subprocess.check_call(cmd, timeout=10)
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*10)
 
     # 3. Create volume group.  The command looks like 'vgcreate volgroup_mirror /dev/sdb1 /dev/sdc1'
     vol_group = "vg_mirror" + str(seed)
     logical_vol = "lv_mirror" + str(seed)
     cmd = ["vgcreate", vol_group]
     cmd += partitions
-    subprocess.check_call(cmd, timeout=10)
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*10)
 
     # 4. Create logical volume with mirroring.  The command looks like 'lvcreate -L 230MB -m1 -n vg_mirror lv_mirror'
     dev_size = dev_size_mb(devices[1])
     log_vol_size = str(dev_size - int(dev_size/10)) + "MB"
     cmd = ["lvcreate", "-L", log_vol_size, "-m1", "-n", logical_vol, vol_group]
-    subprocess.check_call(cmd, timeout=10)
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*10)
     lvm_dev = "/dev/" + vol_group + "/" + logical_vol
 
     # 5. Convert LVM logical volume name to the kernel bdev name like /dev/vg_mirror22/lv_mirror22 to the /dev/dm-4 or so
     cmd = ["readlink", "-f", lvm_dev]
-    return subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8")
+    return subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8")
 
 
 def disassemble_mirror_lvm(lvm_device):
     # 0. Preperation. Convert /dev/dm-X kernel bdev name or any kind of the LVM device name to the /dev/mapper/vg_name-lv_name
     cmd = ["find", "-L", "/dev/mapper", "-samefile", lvm_device]
-    lvm_device = subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8")
+    lvm_device = subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8")
 
     # 1. Disable LVM.  The command looks like 'lvchange -an /dev/mapper/vg_mirror22-lv_mirror22'
     cmd = ["lvchange", "-an", lvm_device]
-    subprocess.check_call(cmd, timeout=10)
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*10)
 
     # 2. Delete LVM volume.  The command looks like 'lvremove /dev/mapper/vg_mirror22-lv_mirror22'
     cmd = ["lvremove", "-f", lvm_device]
-    subprocess.check_call(cmd, timeout=10)
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*10)
 
     # 3. Disable volume group.  The command looks like 'vgremove vg_mirror22'
     vol_group = lvm_device.replace("/dev/mapper/", "").split("-")[0]
     cmd = ["vgremove", vol_group]
-    subprocess.check_call(cmd, timeout=10)
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*10)
 
 
 def assemble_mirror_raid(devices, seed):
@@ -281,18 +282,18 @@ def assemble_mirror_raid(devices, seed):
     cmd += partitions
     # subprocess.run is introduced in Python 3.5
     if sys.version_info <= (3, 5):
-        subprocess.check_call(cmd, timeout=20)
+        subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*20)
     else:
         retries = 3
         for retry in range(retries):
             udev_stop_exec_queue()
             time.sleep(1)
-            rc = subprocess.run(cmd, timeout=20).returncode
+            rc = subprocess.run(cmd, timeout=TIMEOUT_SCALE*20).returncode
             udev_start_exec_queue()
             if rc == 0:
                 break
             elif retry + 1 < retries:
-                subprocess.run(["mdadm", "--stop", "--quiet", raid_dev], timeout=15, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(["mdadm", "--stop", "--quiet", raid_dev], timeout=TIMEOUT_SCALE*15, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 for part in partitions:
                     mdadm_zero_superblock(part)
             elif retry + 1 == retries:
@@ -304,7 +305,7 @@ def assemble_mirror_raid(devices, seed):
 def disassemble_mirror_raid(raid_device, devices):
     udev_stop_exec_queue()
     cmd = ["mdadm", "--stop", "--quiet", raid_device]
-    subprocess.check_call(cmd, timeout=30)
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*30)
     udev_start_exec_queue()
     time.sleep(1)
     for device in devices:
@@ -317,7 +318,7 @@ def kernel_warning_exists():
         ]
 
     cmd = [ "dmesg", "-l", "warn" ]
-    output = subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8")
+    output = subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8")
 
     # kernel warning occurred
     if 'Modules linked in:' in output:
@@ -337,4 +338,4 @@ def test_track(test_name, started):
 
 def os_page_size():
     cmd = ["getconf", "PAGESIZE"]
-    return (int)(subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8"))
+    return (int)(subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8"))
