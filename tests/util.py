@@ -11,7 +11,8 @@ import subprocess
 import sys
 import time
 
-TIMEOUT_SCALE - 2
+TIMEOUT_SCALE = 2
+
 
 def mount(device, path, opts=None):
     cmd = ["mount", device, path]
@@ -51,6 +52,7 @@ def dd(ifile, ofile, count, **kwargs):
 
     subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*240)
 
+
 def md5sum(path):
     md5 = hashlib.md5()
     with open(path, "rb") as f:
@@ -64,9 +66,11 @@ def settle(timeout=20):
     cmd = ["udevadm", "settle", "-t", "{}".format(timeout)]
     subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*(timeout + 10))
 
+
 def partprobe(device, timeout=30):
-        cmd = ["partprobe", device]
-        subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*timeout)
+    cmd = ["partprobe", device]
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*timeout)
+
 
 def udev_start_exec_queue():
     cmd = ["udevadm", "control", "--start-exec-queue"]
@@ -78,7 +82,7 @@ def udev_stop_exec_queue():
     subprocess.check_call(cmd)
 
 
-def partition(disk, part_count = 0):
+def partition(disk, part_count=0):
     if part_count == 0:
         return disk
 
@@ -87,8 +91,10 @@ def partition(disk, part_count = 0):
     cmd = ["parted", "--script", "--align", "optimal", disk, "mklabel", "gpt"]
     for start in range(0, 100, part_size_percent):
         end = start + part_size_percent
-        if end > 100: break
-        if end + part_size_percent > 100: end = 100
+        if end > 100:
+            break
+        if end + part_size_percent > 100:
+            end = 100
         cmd.append("mkpart " + part_type + " {}% {}%".format(start, end))
 
     subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*30)
@@ -98,7 +104,7 @@ def partition(disk, part_count = 0):
     return disk
 
 
-def loop_create(path, part_count = 0):
+def loop_create(path, part_count=0):
     cmd = ["losetup", "--find", "--show", "--partscan", path]
     loopdev = subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8")
 
@@ -122,10 +128,12 @@ def mkfs(device, fs="ext4"):
 
     subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=TIMEOUT_SCALE*120)
 
+
 def xfs_repair_version():
     cmd = ["xfs_repair", "-V"]
     version = subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8").split(" ")[2]
     return version
+
 
 def fsck(image, fs="ext4"):
     if fs == 'xfs':
@@ -135,25 +143,31 @@ def fsck(image, fs="ext4"):
 
     subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=TIMEOUT_SCALE*10)
 
+
 def update_img(device, cow_file, bkp):
     cmd = ["../utils/update-img", device, cow_file, bkp]
     subprocess.check_call(cmd, stdout=subprocess.DEVNULL, timeout=TIMEOUT_SCALE*180)
+
 
 def mktemp_dir():
     cmd = ["mktemp", "-d"]
     temp_dir = subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8")
     return temp_dir
 
+
 def file_lines(file):
     cmd = ["wc", "-l", file]
     lines = int(subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8").split(" ")[0])
     return lines
 
+
 def dev_size_mb(device):
     return int(subprocess.check_output("blockdev --getsize64 %s" % device, shell=True))//1024**2
 
+
 def dev_size_bytes(device):
     return int(subprocess.check_output("blockdev --getsize64 %s" % device, shell=True))
+
 
 # This method finds names of the partitions of the disk
 def get_partitions(disk):
@@ -186,14 +200,14 @@ def wipefs(device):
 
 def parted_create_lvm_raid_partitions(devices, kind):
     if kind == "lvm":
-        part_type="LVM2"
+        part_type = "LVM2"
     elif kind == "raid":
-        part_type="RAID"
+        part_type = "RAID"
     else:
         raise ValueError("Wrong argument kind '" + kind + "' is not 'lvm' or 'raid'!")
 
     settle()
-    partitions=[]
+    partitions = []
     for device in devices:
         wipefs(device)
         cmd = ["parted", "--script", device, "mklabel gpt"]
@@ -311,13 +325,14 @@ def disassemble_mirror_raid(raid_device, devices):
     for device in devices:
         mdadm_zero_superblock(get_last_partition(device))
 
+
 def kernel_warning_exists():
     exceptions_str = [
             # known issue on Fedora 32 (v5.9), related to the LVM driver
             'blkdev_issue_discard'
         ]
 
-    cmd = [ "dmesg", "-l", "warn" ]
+    cmd = ["dmesg", "-l", "warn"]
     output = subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8")
 
     # kernel warning occurred
@@ -329,12 +344,14 @@ def kernel_warning_exists():
 
     return False
 
+
 def test_track(test_name, started):
     with open('/dev/kmsg', 'w') as f:
-        if (started == True):
+        if started is True:
             f.write('<6>--- {} started ---'.format(test_name))
         else:
             f.write('<6>--- {} done. ---'.format(test_name))
+
 
 def os_page_size():
     cmd = ["getconf", "PAGESIZE"]

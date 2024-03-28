@@ -19,6 +19,7 @@ import elastio_snap
 import util
 from devicetestcase_multipart import DeviceTestCaseMultipart
 
+
 class TestMultipart(DeviceTestCaseMultipart):
     def setUp(self):
         self.cow_file = "cow.snap"
@@ -57,7 +58,6 @@ class TestMultipart(DeviceTestCaseMultipart):
         for i in reversed(range(self.part_count)):
             self.assertEqual(elastio_snap.destroy(self.minors[i]), 0)
 
-
     def test_multipart_setup_volumes_write_last_after_destroy(self):
         if (self.part_count < 2):
             self.skipTest("This test requires at least 2 partitions")
@@ -83,8 +83,7 @@ class TestMultipart(DeviceTestCaseMultipart):
         for i in reversed(range(self.part_count - 1)):
             self.assertEqual(elastio_snap.destroy(self.minors[i]), 0)
 
-
-    @unittest.skipIf(os.getenv('TEST_FS') == "xfs" and  platform.release().rsplit(".", 1)[0] == "4.18.0-383.el8", "Broken on CentOS 8 with kernel 4.18.0-383.el8 and XFS. See #159")
+    @unittest.skipIf(os.getenv('TEST_FS') == "xfs" and platform.release().rsplit(".", 1)[0] == "4.18.0-383.el8", "Broken on CentOS 8 with kernel 4.18.0-383.el8 and XFS. See #159")
     def test_multipart_modify_origins(self):
         for i in range(self.part_count):
             dev_size_mb = util.dev_size_mb(self.devices[i])
@@ -117,6 +116,7 @@ class TestMultipart(DeviceTestCaseMultipart):
 
             md5_snap = util.md5sum(snapfile)
             self.assertEqual(md5_orig, md5_snap)
+
 
 if __name__ == "__main__":
     unittest.main()
