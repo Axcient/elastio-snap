@@ -22,6 +22,8 @@ def map_deb_distro = [
 	"debian12" : "bookworm-agent",
 ]
 
+def test_disks = [:]
+
 pipeline
 {
 	agent none
@@ -87,9 +89,9 @@ pipeline
 					{
 						steps
 						{
+							script { test_disks[env.DISTRO] = getTestDisks() }
 							lock(label: 'elastio-vmx', quantity: 1, resource : null)
 							{
-								sh "lsblk -f"
 								sh "sudo make"
 								sh "sudo make install"
 							}
@@ -101,17 +103,17 @@ pipeline
 					stage('Run tests on LVM (loop device)') { steps { runTests(supported_fs, "--lvm") } }
 					stage('Run tests on RAID (loop device)') { steps { runTests(supported_fs, "--raid") } }
 
-					stage('Run tests (qcow2 disk)') { steps { runTests(supported_fs, "-d /dev/sdb1") } }
-					stage('Run tests on LVM (qcow2 disks)') { steps { runTests(supported_fs, " -d /dev/sdb -d /dev/sdc --lvm") } }
+					stage('Run tests (qcow2 disk)') { steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}1") } }
+					stage('Run tests on LVM (qcow2 disks)') { steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --lvm") } }
 					stage('Run tests on RAID (qcow2 disks)')
 					{
 						// An issue is observed in virtio driver whith XFS and kernel 3.16 on Debian 8. It's a known issue, it happens on
 						// mount of the raid1 device with XFS even if elastio-snap is not loaded. See https://bugzilla.redhat.com/show_bug.cgi?id=1111290
 						when { expression { env.DISTRO != 'debian8' } }
-						steps { runTests(supported_fs, " -d /dev/sdb -d /dev/sdc --raid") }
+						steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --raid") }
 					}
 
-					stage('Run tests multipart  (qcow2 disks)') { steps { runTests(supported_fs, "-d /dev/sdb  -t test_multipart") } }
+					stage('Run tests multipart  (qcow2 disks)') { steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}  -t test_multipart") } }
 				}
 			}
 		}
@@ -183,4 +185,13 @@ def publishPackage(String artifactoryRoot, String deb, String rpm)
 			publishRpmPackage(artifactoryRoot, rpm)
 		}
 	}
+}
+
+def getTestDisks()
+{
+	sh "lsblk -f"
+	return sh (
+		script: "sudo fdisk -l | grep 'Disk ' | grep ' 2147483648 bytes' | awk '{print \$2}' | sed 's/://'",
+		returnStdout: true
+	).split('\n')
 }
