@@ -89,6 +89,7 @@ pipeline
 						{
 							lock(label: 'elastio-vmx', quantity: 1, resource : null)
 							{
+								sh "lsblk -f"
 								sh "sudo make"
 								sh "sudo make install"
 							}
