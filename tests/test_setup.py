@@ -17,6 +17,7 @@ import elastio_snap
 import util
 from devicetestcase import DeviceTestCase
 
+
 class TestSetup(DeviceTestCase):
     def setUp(self):
         self.cow_file = "cow.snap"
@@ -72,11 +73,11 @@ class TestSetup(DeviceTestCase):
         self.addCleanup(elastio_snap.destroy, self.minor)
 
         page_size = util.os_page_size()
-        cow_file_size_factor = 0.1 # 10% by default if `fallocated_space` is 0
+        cow_file_size_factor = 0.1  # 10% by default if `fallocated_space` is 0
         cow_file_size = util.dev_size_bytes(self.device) * cow_file_size_factor
 
         # rounding up aligned to the PAGE_SIZE
-        cow_file_size = int(math.ceil(cow_file_size / page_size) * page_size);
+        cow_file_size = int(math.ceil(cow_file_size / page_size) * page_size)
         self.assertEqual(os.stat(self.cow_full_path).st_size, cow_file_size)
 
         snapdev = elastio_snap.info(self.minor)
@@ -90,7 +91,7 @@ class TestSetup(DeviceTestCase):
         cow_file_size = 50 * 1024 * 1024
 
         # rounding up aligned to the PAGE_SIZE
-        cow_file_size = int(math.ceil(cow_file_size / page_size) * page_size);
+        cow_file_size = int(math.ceil(cow_file_size / page_size) * page_size)
         self.assertEqual(os.stat(self.cow_full_path).st_size, cow_file_size)
 
         snapdev = elastio_snap.info(self.minor)
@@ -117,13 +118,13 @@ class TestSetup(DeviceTestCase):
         # Setup device #1 at the root volume
         minor = randint(0, 23)
         while minor == self.minor:
-          minor = randint(0, 23)
+            minor = randint(0, 23)
 
         cmd = ["findmnt", "/", "-n", "-o", "SOURCE"]
-        device = subprocess.check_output(cmd, timeout=10, shell=False).rstrip().decode("utf-8")
+        device = subprocess.check_output(cmd, timeout=util.TIMEOUT_SCALE*10, shell=False).rstrip().decode("utf-8")
         # Convert LVM logical volume name (if it is) to the kernel bdev name
         cmd = ["readlink", "-f", device]
-        device = subprocess.check_output(cmd, timeout=10).rstrip().decode("utf-8")
+        device = subprocess.check_output(cmd, timeout=util.TIMEOUT_SCALE*10).rstrip().decode("utf-8")
         snap_device = "/dev/elastio-snap{}".format(minor)
         cow_file = "cow"
 
@@ -163,6 +164,7 @@ class TestSetup(DeviceTestCase):
 
         # Destroy 1st snapshot device
         self.assertEqual(elastio_snap.destroy(minor), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

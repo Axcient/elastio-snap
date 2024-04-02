@@ -14,6 +14,7 @@ import util
 
 from random import randint
 
+
 @unittest.skipUnless(os.geteuid() == 0, "Must be run as root")
 class DeviceTestCase(unittest.TestCase):
     @classmethod
@@ -41,7 +42,8 @@ class DeviceTestCase(unittest.TestCase):
                 # So, let's verify the difference of these random numbers )
                 while True:
                     r = randint(0, 999)
-                    if not r in seeds: break
+                    if r not in seeds:
+                        break
                 seeds.append(r)
                 cls.backing_stores.append("/tmp/disk_{0:03d}.img".format(seeds[i]))
                 util.dd("/dev/zero", cls.backing_stores[i], cls.size_mb, bs="1M")
@@ -81,4 +83,4 @@ class DeviceTestCase(unittest.TestCase):
         os.rmdir(cls.mount)
         cls.kmod.unload()
 
-        assert(util.kernel_warning_exists() == False)
+        assert(util.kernel_warning_exists() is False)

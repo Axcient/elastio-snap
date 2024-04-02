@@ -77,6 +77,6 @@ class TestUpdateImage(DeviceTestCase):
         self.addCleanup(util.unmount, temp_dir)
         self.assertEqual(util.file_lines(read_testfile), iterations - 1)
 
- 
+
 if __name__ == "__main__":
     unittest.main()

@@ -16,7 +16,7 @@ class Module(object):
     def __init__(self, path):
         self.path = path
         self.name = self.path.split("/")[-1].split(".")[0]
-        self.timeout = 10
+        self.timeout = 30
 
         if not os.path.isfile(self.path):
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.path)

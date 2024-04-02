@@ -39,7 +39,7 @@ class TestSnapshot(DeviceTestCase):
 
         # We subtract a couple of megabytes to make sure the cow
         # file won't overflow during the test
-        if self.is_raid == True:
+        if self.is_raid:
             file_size_mb = math.floor(dev_size_mb * 0.06)
         else:
             file_size_mb = math.floor(dev_size_mb * 0.1) - 20
@@ -96,7 +96,6 @@ class TestSnapshot(DeviceTestCase):
 
         self.assertEqual(elastio_snap.get_free_minor(), 1)
 
-
     @unittest.skip('Functionality removed')
     def test_cow_not_deleteable(self):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
@@ -108,7 +107,6 @@ class TestSnapshot(DeviceTestCase):
             self.assertEqual(e.errno, errno.EPERM)
         else:
             self.fail("file is not immutable")
-
 
     @unittest.skip('Functionality removed')
     def test_cow_not_movable(self):

@@ -58,12 +58,14 @@ class Flags:
 
 lib = ffi.dlopen("../lib/libelastio-snap.so")
 
+
 # It could be "class State(IntFlag):", but "IntFlag" was introduced in class "enum" of the Python 3.6,
 # which isn't present on Debian 9 and CentOS 7.
 class State:
     SNAPSHOT = 1
     ACTIVE = 2
     UNVERIFIED = 4
+
 
 def setup(minor, device, cow_file, fallocated_space=0, cache_size=0, ignore_snap_errors=False):
     ret = lib.elastio_snap_setup_snapshot(
@@ -125,9 +127,10 @@ def destroy(minor, retries=3):
                 print('Retry {} of {}: couldn\'t destroy device (minor {})'. format(retry + 1, retries, minor))
                 time.sleep(1)
             else:
-                break;
+                break
 
     return ffi.errno
+
 
 def transition_to_incremental(minor):
     ret = lib.elastio_snap_transition_incremental(minor)
@@ -185,11 +188,13 @@ def info(minor):
         "ignore_snap_errors": di.ignore_snap_errors
     }
 
+
 def get_free_minor():
     ret = lib.elastio_snap_get_free_minor()
     if (ret < 0):
         return -ffi.errno
     return ret
+
 
 def version():
     with open("/sys/module/elastio-snap/version", "r") as v:

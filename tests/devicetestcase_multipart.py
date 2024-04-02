@@ -13,6 +13,7 @@ import util
 
 from random import randint
 
+
 @unittest.skipUnless(os.geteuid() == 0, "Must be run as root")
 @unittest.skipIf(os.getenv('LVM') or os.getenv('RAID'), "Multipart testcase does not support LVM/raid devices creation")
 @unittest.skipIf(os.getenv('TEST_DEVICES') and util.get_disk_by_partition(os.getenv('TEST_DEVICES').split()[0]), "Multipart testcase requires disk, not a partition.")
@@ -32,7 +33,8 @@ class DeviceTestCaseMultipart(unittest.TestCase):
             # So, let's verify the difference of the random numbers.
             while True:
                 r = randint(0, 23)
-                if not r in cls.minors: break
+                if r not in cls.minors:
+                    break
             cls.minors.append(r)
 
         cls.kmod = kmod.Module("../src/elastio-snap.ko")
@@ -73,4 +75,4 @@ class DeviceTestCaseMultipart(unittest.TestCase):
 
         cls.kmod.unload()
 
-        assert(util.kernel_warning_exists() == False)
+        assert(util.kernel_warning_exists() is False)
