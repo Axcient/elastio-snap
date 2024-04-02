@@ -189,6 +189,8 @@ def publishPackage(String artifactoryRoot, String deb, String rpm)
 
 def getTestDisks()
 {
+	// All nodes distro images has two 2GiB disks for tests.
+	// This code retrieve actual disk names
 	sh "lsblk -f"
 	return sh (
 		script: "sudo fdisk -l | grep 'Disk ' | grep ' 2147483648 bytes' | awk '{print \$2}' | sed 's/://'",
