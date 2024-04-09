@@ -91,7 +91,7 @@ struct nl_msg_header {
 
 #define nl_trace_event_generic(_type, _priv)			\
 ({ 								\
-	struct nl_params params = { 0 };				\
+	struct nl_params params = { 0 };			\
 								\
 	params.priv1 = (_priv); 				\
 	params.priv2 = 0; 					\
