@@ -607,7 +607,7 @@ rm -rf %{buildroot}
 %dir %{_kmod_src_root}
 %{_kmod_src_root}/Makefile
 %{_kmod_src_root}/configure-tests
-%{_kmod_src_root}/elastio-snap.c
+%{_kmod_src_root}/main.c
 %{_kmod_src_root}/elastio-snap.h
 %{_kmod_src_root}/dkms.conf
 %{_kmod_src_root}/genconfig.sh
