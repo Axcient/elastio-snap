@@ -251,7 +251,8 @@ int main(int argc, char **argv)
 	memset(&user_sockaddr, 0, sizeof(user_sockaddr));
 	user_sockaddr.nl_family = AF_NETLINK;
 	user_sockaddr.nl_groups = NL_MCAST_GROUP;
-	user_sockaddr.nl_pid = getpid();
+	// NOTE: HT:	will be bound by the kernel
+	user_sockaddr.nl_pid = 0;
 
 	int ret = bind(sock_fd, (struct sockaddr*)&user_sockaddr, sizeof(user_sockaddr));
 	if (ret) {
