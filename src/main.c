@@ -3044,6 +3044,9 @@ static int cow_read_mapping(struct cow_manager *cm, uint64_t pos, uint64_t *out)
 	if(!cm->sects[sect_idx].mappings){
 		if(!cm->sects[sect_idx].has_data){
 			*out = 0;
+#ifdef NETLINK_DEBUG
+			nl_trace_event_cow(NL_EVENT_COW_READ_MAPPING, pos, *out);
+#endif
 			return 0;
 		}else{
 			ret = __cow_load_section(cm, sect_idx);
