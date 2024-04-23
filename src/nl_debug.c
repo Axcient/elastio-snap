@@ -22,7 +22,6 @@ int nl_send_event(enum nl_msg_type type, const char *func, int line, struct nl_p
 	NETLINK_CB(skb).portid = 0;
 	NETLINK_CB(skb).dst_group = NL_MCAST_GROUP;
 
-	spin_lock_bh(&nl_spinlock);
 	msg = nlmsg_data(nlsk_mh);
 	msg->type = type;
 	ktime_get_ts64(&tspec);
@@ -38,7 +37,6 @@ int nl_send_event(enum nl_msg_type type, const char *func, int line, struct nl_p
 	memcpy(&msg->params, params, sizeof(*params));
 
 	nlmsg_multicast(nl_sock, skb, 0, NL_MCAST_GROUP, GFP_ATOMIC);
-	spin_unlock_bh(&nl_spinlock);
 	return 0;
 }
 
