@@ -15,6 +15,7 @@ int nl_send_event(enum nl_msg_type type, const char *func, int line, struct nl_p
 	struct sk_buff *skb;
 	struct nl_msg_header *msg;
 	struct nlmsghdr *nlsk_mh;
+	struct timespec64 tspec;
 
 	skb = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_ATOMIC);
 	nlsk_mh = nlmsg_put(skb, 0, 0, NLMSG_DONE, sizeof(struct nl_msg_header), 0);
@@ -24,7 +25,8 @@ int nl_send_event(enum nl_msg_type type, const char *func, int line, struct nl_p
 	spin_lock_bh(&nl_spinlock);
 	msg = nlmsg_data(nlsk_mh);
 	msg->type = type;
-	msg->timestamp = ktime_get();
+	ktime_get_ts64(&tspec);
+	msg->timestamp = timespec64_to_ns(&tspec);
 	msg->seq_num = seq_num;
 	seq_num++;
 
