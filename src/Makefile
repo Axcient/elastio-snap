@@ -3,6 +3,14 @@
 obj-m := elastio-snap.o
 elastio-snap-objs:= main.o
 
+KVER=$(shell uname -r)
+KMAJ = $(shell echo $(KVER) | \
+sed -e 's/^\([0-9][0-9]*\)\.[0-9][0-9]*\.[0-9][0-9]*.*/\1/')
+
+ifeq ($(shell test $(KMAJ) -gt 3; echo $$?),0)
+NETLINK_DEBUG ?= y
+endif
+
 ifeq ($(NETLINK_DEBUG),y)
 elastio-snap-objs += nl_debug.o
 endif

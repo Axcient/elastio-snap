@@ -15,16 +15,17 @@ int nl_send_event(enum nl_msg_type type, const char *func, int line, struct nl_p
 	struct sk_buff *skb;
 	struct nl_msg_header *msg;
 	struct nlmsghdr *nlsk_mh;
+	struct timespec64 tspec;
 
 	skb = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_ATOMIC);
 	nlsk_mh = nlmsg_put(skb, 0, 0, NLMSG_DONE, sizeof(struct nl_msg_header), 0);
 	NETLINK_CB(skb).portid = 0;
 	NETLINK_CB(skb).dst_group = NL_MCAST_GROUP;
 
-	spin_lock_bh(&nl_spinlock);
 	msg = nlmsg_data(nlsk_mh);
 	msg->type = type;
-	msg->timestamp = ktime_get();
+	ktime_get_ts64(&tspec);
+	msg->timestamp = timespec64_to_ns(&tspec);
 	msg->seq_num = seq_num;
 	seq_num++;
 
@@ -36,7 +37,6 @@ int nl_send_event(enum nl_msg_type type, const char *func, int line, struct nl_p
 	memcpy(&msg->params, params, sizeof(*params));
 
 	nlmsg_multicast(nl_sock, skb, 0, NL_MCAST_GROUP, GFP_ATOMIC);
-	spin_unlock_bh(&nl_spinlock);
 	return 0;
 }
 
