@@ -261,7 +261,11 @@ Requires(post):  dkms
 # Ensure perl is actually installed for builds to work
 # This issue mainly affects EL6, but it doesn't hurt to
 # be cautious and just require it across the EL releases.
+%if 0%{?rhel} >= 8 || 0%{?fedora} >= 37
+Requires:        perl-interpreter
+%else
 Requires:        perl
+%endif
 %endif
 
 # Dependencies for actually building the kmod
