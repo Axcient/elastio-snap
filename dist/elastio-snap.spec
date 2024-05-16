@@ -429,6 +429,10 @@ install -m 755 dist/udev/* %{buildroot}%{_udev_rules}
 # Get rid of git artifacts
 find %{buildroot} -name "*.git*" -print0 | xargs -0 rm -rfv
 
+%pre -n %{dkmsname}
+dkms status elastio-snap | awk -F'[, /]*' {'print $2'} | xargs -I{} dkms remove -m elastio-snap -v {} --all || :
+rm -rf /var/lib/dkms/elastio-snap/ &> /dev/null || :
+
 %preun -n %{dkmsname}
 
 %if "%{_vendor}" == "debbuild"
