@@ -253,7 +253,7 @@ static int elastio_snap_thaw_bdev(struct block_device *bdev, struct super_block 
 
 struct bdev_container {
 #if defined HAVE_BDEV_OPEN_BY_PATH
-	struct bd_handle *bd_handle;
+	struct bdev_handle *bd_handle;
 #else
 	struct block_device *bdev;
 #endif
@@ -262,12 +262,12 @@ struct bdev_container {
 static struct block_device *elastio_snap_blkdev_get_by_path(struct bdev_container *bd_c, const char *path, fmode_t mode, void *holder)
 {
 	if (!bd_c)
-		return NULL;
+		return ERR_PTR(-EINVAL);
 
 #if defined HAVE_BDEV_OPEN_BY_PATH
 	bd_c->bd_handle = bdev_open_by_path(path, mode, holder, NULL);
 	if (IS_ERR(bd_c->bd_handle))
-		return NULL;
+		return ERR_PTR(-ENOTBLK);
 
 	return bd_c->bd_handle->bdev;
 #elif defined HAVE_BLKDEV_GET_BY_PATH_4
@@ -4678,9 +4678,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 #endif
 	int ret;
 	struct super_block *origsb = elastio_snap_get_super(bdev);
-#ifdef HAVE_THAW_BDEV_INT
 	struct super_block *sb = NULL;
-#endif
 	char bdev_name[BDEVNAME_SIZE];
 	MAYBE_UNUSED(ret);
 
@@ -6415,7 +6413,7 @@ static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx
 	//if we successfully went dormant, but the umount call failed, reactivate
 	if(umount_ret){
 		bdev = elastio_snap_blkdev_get_by_path(&bd_c, dev->sd_bdev_path, FMODE_READ, NULL);
-		if(!bdev || IS_ERR(bdev)){
+		if(IS_ERR(bdev)){
 			LOG_DEBUG("device gone, moving to error state");
 			tracer_set_fail_state(dev, -ENODEV);
 			return;
