@@ -153,7 +153,7 @@ struct super_block* (*__elastio_snap_get_super)(struct block_device *) = (GET_SU
 struct super_block* (*__elastio_snap_user_get_super)(dev_t, bool) = (USER_GET_SUPER_ADDR != 0) ?
 	(struct super_block* (*)(dev_t, bool)) (USER_GET_SUPER_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
-struct super_block *elastio_snap_get_super(struct block_device *bdev)
+static struct super_block *elastio_snap_get_super(struct block_device *bdev)
 {
 #ifdef HAVE_GET_SUPER
 	return __elastio_snap_get_super(bdev);
@@ -162,8 +162,8 @@ struct super_block *elastio_snap_get_super(struct block_device *bdev)
 #endif
 }
 
-#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4)
-struct block_device *elastio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
+#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4 || defined HAVE_BDEV_OPEN_BY_PATH)
+static struct block_device *elastio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
 	int r;
 	struct block_device *retbd;
 	struct nameidata nd;
@@ -200,7 +200,7 @@ fail:
 }
 #endif
 
-#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4)
+#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4 || defined HAVE_BDEV_OPEN_BY_PATH)
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, void *holder){
 	struct block_device *bdev;
@@ -221,13 +221,81 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 }
 #endif
 
-static struct block_device *elastio_snap_blkdev_get_by_path(const char *path, fmode_t mode, void *holder)
+static int elastio_snap_freeze_bdev(struct block_device *bdev, struct super_block **sb)
 {
-#ifdef HAVE_BLKDEV_GET_BY_PATH_4
-	return blkdev_get_by_path(path, mode, holder, NULL);
+	int ret;
+
+#ifdef HAVE_THAW_BDEV_INT
+	*sb = freeze_bdev(bdev);
+	ret = (IS_ERR(*sb)) ? PTR_ERR(*sb) : 0;
+#elif defined HAVE_BDEV_FREEZE
+	/* Starting from v6.8 */
+	ret = bdev_freeze(bdev);
 #else
-	return blkdev_get_by_path(path, mode, holder);
+	ret = freeze_bdev(bdev);
 #endif
+	return ret;
+}
+
+static int elastio_snap_thaw_bdev(struct block_device *bdev, struct super_block *sb)
+{
+	int ret;
+#ifdef HAVE_THAW_BDEV_INT
+	ret = thaw_bdev(bdev, sb);
+#elif defined HAVE_BDEV_FREEZE
+	/* Starting from v6.8 */
+	ret = bdev_thaw(bdev);
+#else
+	ret = thaw_bdev(bdev);
+#endif
+	return ret;
+}
+
+struct bdev_container {
+#if defined HAVE_BDEV_OPEN_BY_PATH
+	struct bdev_handle *bd_handle;
+#else
+	struct block_device *bdev;
+#endif
+};
+
+static struct block_device *elastio_snap_blkdev_get_by_path(struct bdev_container *bd_c, const char *path, fmode_t mode, void *holder)
+{
+	if (!bd_c)
+		return ERR_PTR(-EINVAL);
+
+#if defined HAVE_BDEV_OPEN_BY_PATH
+	bd_c->bd_handle = bdev_open_by_path(path, mode, holder, NULL);
+	if (IS_ERR(bd_c->bd_handle))
+		return ERR_PTR(-ENOTBLK);
+
+	return bd_c->bd_handle->bdev;
+#elif defined HAVE_BLKDEV_GET_BY_PATH_4
+	bd_c->bdev = blkdev_get_by_path(path, mode, holder, NULL);
+	return bd_c->bdev;
+#else
+	bd_c->bdev = blkdev_get_by_path(path, mode, holder);
+	return bd_c->bdev;
+#endif
+}
+
+static int elastio_snap_blkdev_put(struct bdev_container *bd_c)
+{
+	if (IS_ERR(bd_c)) {
+		LOG_ERROR(-EINVAL, "%s(): invalid argument", __func__);
+		return -EINVAL;
+	}
+
+#if defined HAVE_BDEV_OPEN_BY_PATH
+	bdev_release(bd_c->bd_handle);
+#elif defined HAVE_BLKDEV_PUT_1
+	blkdev_put(bd_c->bdev);
+#elif defined HAVE_BLKDEV_PUT_HOLDER
+	blkdev_put(bd_c->bdev, NULL);
+#else
+	blkdev_put(bd_c->bdev, FMODE_READ);
+#endif
+	return 0;
 }
 
 #ifndef READ_SYNC
@@ -448,7 +516,7 @@ static void elastio_snap_bio_endio(struct bio *bio, int err){
 #if !defined(HAVE_BDEV_STACK_LIMITS)
 //#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
 
-int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev, sector_t start){
+static int bdev_stack_limits(struct queue_limits *t, struct block_device *bdev, sector_t start){
 	struct request_queue *bq = bdev_get_queue(bdev);
 	start += get_start_sect(bdev);
 	return blk_stack_limits(t, &bq->limits, start << 9);
@@ -526,15 +594,6 @@ static int elastio_snap_should_remove_suid(struct dentry *dentry)
 #else
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(5,12,0)
 	#define elastio_snap_bio_bi_disk(bio) ((bio)->bi_disk)
-#endif
-
-#ifdef HAVE_BLKDEV_PUT_1
-//#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,28)
-	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev);
-#elif defined HAVE_BLKDEV_PUT_HOLDER
-	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev, NULL);
-#else
-	#define elastio_snap_blkdev_put(bdev) blkdev_put(bdev, FMODE_READ);
 #endif
 
 #ifdef HAVE_BDEV_NR_SECTORS
@@ -1059,6 +1118,7 @@ struct snap_device{
 	struct request_queue *sd_queue; //snap device request queue
 	struct gendisk *sd_gd; //snap device gendisk
 	struct block_device *sd_base_dev; //device being snapshot
+	struct bdev_container sd_bdev_container;
 	char *sd_bdev_path; //base device file path
 	struct cow_manager *sd_cow; //cow manager
 	char *sd_cow_path; //cow file path
@@ -1781,7 +1841,7 @@ error:
 
 #define SECTOR_INVALID ~(u64)0
 
-sector_t sector_by_offset(struct snap_device *dev, size_t offset)
+static sector_t sector_by_offset(struct snap_device *dev, size_t offset)
 {
 	unsigned int i;
 	struct fiemap_extent *extent = dev->sd_cow_extents;
@@ -1793,7 +1853,7 @@ sector_t sector_by_offset(struct snap_device *dev, size_t offset)
 	return SECTOR_INVALID;
 }
 
-int file_write_block(struct snap_device *dev, void *block, size_t offset, size_t len)
+static int file_write_block(struct snap_device *dev, void *block, size_t offset, size_t len)
 {
 	int ret;
 	int bytes;
@@ -1896,7 +1956,7 @@ out:
 	return ret;
 }
 
-int file_read_block(struct snap_device *dev, void *buf, size_t offset, size_t len)
+static int file_read_block(struct snap_device *dev, void *buf, size_t offset, size_t len)
 {
 	int ret;
 	int bytes;
@@ -4618,9 +4678,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 #endif
 	int ret;
 	struct super_block *origsb = elastio_snap_get_super(bdev);
-#ifdef HAVE_THAW_BDEV_INT
 	struct super_block *sb = NULL;
-#endif
 	char bdev_name[BDEVNAME_SIZE];
 	MAYBE_UNUSED(ret);
 
@@ -4631,12 +4689,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 
 		//freeze and sync block device
 		LOG_DEBUG("freezing '%s'", bdev_name);
-#ifdef HAVE_THAW_BDEV_INT
-		sb = freeze_bdev(bdev);
-		ret = (IS_ERR(sb)) ? PTR_ERR(sb) : 0;
-#else
-		ret = freeze_bdev(bdev);
-#endif
+		ret = elastio_snap_freeze_bdev(bdev, &sb);
 		if (ret) {
 			LOG_ERROR((ret), "error freezing '%s': error", bdev_name);
 			return ret;
@@ -4687,11 +4740,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	if(origsb){
 		//thaw the block device
 		LOG_DEBUG("thawing '%s'", bdev_name);
-#ifdef HAVE_THAW_BDEV_INT
-		ret = thaw_bdev(bdev, sb);
-#else
-		ret = thaw_bdev(bdev);
-#endif
+		ret = elastio_snap_thaw_bdev(bdev, sb);
 		if(ret){
 			LOG_ERROR(ret, "error thawing '%s'", bdev_name);
 			//we can't reasonably undo what we've done at this point, and we've replaced the mrf.
@@ -4752,17 +4801,16 @@ static void __tracer_destroy_base_dev(struct snap_device *dev){
 
 	if(dev->sd_base_dev){
 		LOG_DEBUG("freeing base block device");
-		elastio_snap_blkdev_put(dev->sd_base_dev);
+		elastio_snap_blkdev_put(&dev->sd_bdev_container);
 		dev->sd_base_dev = NULL;
 	}
 }
 
 static int __tracer_setup_base_dev(struct snap_device *dev, const char *bdev_path){
 	int ret;
-
 	//open the base block device
 	LOG_DEBUG("finding block device");
-	dev->sd_base_dev = elastio_snap_blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
+	dev->sd_base_dev = elastio_snap_blkdev_get_by_path(&dev->sd_bdev_container, bdev_path, FMODE_READ, NULL);
 	if(IS_ERR(dev->sd_base_dev)){
 		ret = PTR_ERR(dev->sd_base_dev);
 		dev->sd_base_dev = NULL;
@@ -4813,6 +4861,7 @@ static void __tracer_copy_base_dev(const struct snap_device *src, struct snap_de
 	dest->sd_base_dev = src->sd_base_dev;
 	dest->sd_bdev_path = src->sd_bdev_path;
 	dest->sd_cow_state = src->sd_cow_state;
+	dest->sd_bdev_container = src->sd_bdev_container;
 	dest->sd_ignore_snap_errors = src->sd_ignore_snap_errors;
 }
 
@@ -5617,8 +5666,8 @@ static void tracer_elastio_snap_info(const struct snap_device *dev, struct elast
 	info->error = tracer_read_fail_state(dev);
 	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : elastio_snap_cow_max_memory_default;
 	info->ignore_snap_errors = dev->sd_ignore_snap_errors;
-	strlcpy(info->cow, dev->sd_cow_path, PATH_MAX);
-	strlcpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
+	strscpy(info->cow, dev->sd_cow_path, PATH_MAX);
+	strscpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
 
 	if(!test_bit(UNVERIFIED, &dev->sd_state)){
 		info->falloc_size = dev->sd_cow->file_max;
@@ -5673,10 +5722,10 @@ static int __verify_bdev_writable(const char *bdev_path, int *out){
 	int writable = 0;
 	struct block_device *bdev;
 	struct super_block *sb;
+	struct bdev_container bd_c;
 
 	//open the base block device
-	bdev = elastio_snap_blkdev_get_by_path(bdev_path, FMODE_READ, NULL);
-
+	bdev = elastio_snap_blkdev_get_by_path(&bd_c, bdev_path, FMODE_READ, NULL);
 	if(IS_ERR(bdev)){
 		*out = 0;
 		return PTR_ERR(bdev);
@@ -5688,7 +5737,7 @@ static int __verify_bdev_writable(const char *bdev_path, int *out){
 		drop_super(sb);
 	}
 
-	elastio_snap_blkdev_put(bdev);
+	elastio_snap_blkdev_put(&bd_c);
 	*out = writable;
 	return 0;
 }
@@ -6262,6 +6311,7 @@ static int __handle_bdev_mount_writable(const char __user *dir_name, const struc
 	int ret;
 	unsigned int i;
 	struct snap_device *dev;
+	struct bdev_container bd_c;
 	struct block_device *cur_bdev;
 
 	tracer_for_each(dev, i){
@@ -6269,7 +6319,7 @@ static int __handle_bdev_mount_writable(const char __user *dir_name, const struc
 
 		if(test_bit(UNVERIFIED, &dev->sd_state)){
 			//get the block device for the unverified tracer we are looking into
-			cur_bdev = elastio_snap_blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
+			cur_bdev = elastio_snap_blkdev_get_by_path(&bd_c, dev->sd_bdev_path, FMODE_READ, NULL);
 			if(IS_ERR(cur_bdev)){
 				cur_bdev = NULL;
 				continue;
@@ -6279,15 +6329,14 @@ static int __handle_bdev_mount_writable(const char __user *dir_name, const struc
 			if(cur_bdev == bdev){
 				LOG_DEBUG("block device mount detected for unverified device %d", i);
 				auto_transition_active(i, dir_name);
-				elastio_snap_blkdev_put(cur_bdev);
+				elastio_snap_blkdev_put(&bd_c);
 
 				ret = 0;
 				goto out;
 			}
 
 			//put the block device
-			elastio_snap_blkdev_put(cur_bdev);
-
+			elastio_snap_blkdev_put(&bd_c);
 		}else if(dev->sd_base_dev == bdev){
 			LOG_DEBUG("block device mount detected for dormant device %d", i);
 			auto_transition_active(i, dir_name);
@@ -6351,6 +6400,7 @@ out:
 #define handle_bdev_mounted_writable(dir_name, idx_out) handle_bdev_mount_event(dir_name, 0, idx_out, 1)
 
 static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx, const char __user *dir_name){
+	struct bdev_container bd_c;
 	struct block_device *bdev;
 	struct snap_device *dev;
 	struct super_block *sb;
@@ -6362,15 +6412,14 @@ static void post_umount_check(int dormant_ret, long umount_ret, unsigned int idx
 
 	//if we successfully went dormant, but the umount call failed, reactivate
 	if(umount_ret){
-		bdev = elastio_snap_blkdev_get_by_path(dev->sd_bdev_path, FMODE_READ, NULL);
-		if(!bdev || IS_ERR(bdev)){
+		bdev = elastio_snap_blkdev_get_by_path(&bd_c, dev->sd_bdev_path, FMODE_READ, NULL);
+		if(IS_ERR(bdev)){
 			LOG_DEBUG("device gone, moving to error state");
 			tracer_set_fail_state(dev, -ENODEV);
 			return;
 		}
 
-		elastio_snap_blkdev_put(bdev);
-
+		elastio_snap_blkdev_put(&bd_c);
 		LOG_DEBUG("umount call failed, reactivating tracer %u", idx);
 		auto_transition_active(idx, dir_name);
 		return;
