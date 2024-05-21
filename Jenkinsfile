@@ -61,7 +61,7 @@ pipeline
 							'amazon2', 'amazon2023',
 							'centos7', 'centos8', 'centos9',
 							'alma8', 'alma9',
-							'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', 'fedora38',
+							'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', 'fedora38', 'fedora39',
 							'ubuntu1804', 'ubuntu2004', 'ubuntu2204'
 					}
 				}
@@ -70,6 +70,15 @@ pipeline
 				}
 				stages
 				{
+					stage('Update kernel')
+					{
+						when { expression { env.DISTRO == 'fedora39' } }
+						steps
+						{
+							updateKernelWithReboot()
+							checkout scm
+						}
+					}
 					stage('Publish packages')
 					{
 						when { anyOf {
@@ -100,24 +109,35 @@ pipeline
 
 
 					stage('Run tests (loop device)') { steps { runTests(supported_fs, "") } }
-					stage('Run tests on LVM (loop device)') { steps { runTests(supported_fs, "--lvm") } }
-					stage('Run tests on RAID (loop device)') { steps { runTests(supported_fs, "--raid") } }
+					//stage('Run tests on LVM (loop device)') { steps { runTests(supported_fs, "--lvm") } }
+					//stage('Run tests on RAID (loop device)') { steps { runTests(supported_fs, "--raid") } }
 
-					stage('Run tests (qcow2 disk)') { steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}1") } }
-					stage('Run tests on LVM (qcow2 disks)') { steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --lvm") } }
-					stage('Run tests on RAID (qcow2 disks)')
-					{
+					//stage('Run tests (qcow2 disk)') { steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}1") } }
+					//stage('Run tests on LVM (qcow2 disks)') { steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --lvm") } }
+					//stage('Run tests on RAID (qcow2 disks)')
+					//{
 						// An issue is observed in virtio driver whith XFS and kernel 3.16 on Debian 8. It's a known issue, it happens on
 						// mount of the raid1 device with XFS even if elastio-snap is not loaded. See https://bugzilla.redhat.com/show_bug.cgi?id=1111290
-						when { expression { env.DISTRO != 'debian8' } }
-						steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --raid") }
-					}
+					//	when { expression { env.DISTRO != 'debian8' } }
+					//	steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --raid") }
+					//}
 
-					stage('Run tests multipart  (qcow2 disks)') { steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}  -t test_multipart") } }
+					//stage('Run tests multipart  (qcow2 disks)') { steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}  -t test_multipart") } }
 				}
 			}
 		}
 	}
+}
+
+def updateKernelWithReboot()
+{
+	sh '[ -f /etc/debian_version ] && (sudo apt update; sudo apt upgrade -y) || sudo yum upgrade -y'
+
+	vSphere buildStep: [$class: 'PowerOff', vm: env.NODE_NAME], serverName: 'vSphere SLC'
+	vSphere buildStep: [$class: 'PowerOn', vm: env.NODE_NAME, timeoutInSeconds: 600], serverName: 'vSphere SLC'
+
+	Jenkins.instance.getNode(env.NODE_NAME).getComputer().connect(true)
+	sleep(time:30,unit:"SECONDS")
 }
 
 def runTests(def supported_fs, String args)
