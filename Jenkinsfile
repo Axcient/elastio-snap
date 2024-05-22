@@ -65,6 +65,15 @@ pipeline
 				}
 				stages
 				{
+					stage('Update kernel')
+					{
+						when { expression { env.DISTRO == 'fedora39' } }
+						steps
+						{
+							updateKernelWithReboot()
+						}
+					}
+
 					stage('Publish packages')
 					{
 						when { anyOf {
@@ -132,6 +141,13 @@ def runTests(def supported_fs, String args)
 			throw e
 		}
 	}
+}
+
+def updateKernelWithReboot()
+{
+	sh '[ -f /etc/debian_version ] && sudo apt upgrade -y || sudo yum upgrade -y'
+	sh 'echo Kernel version: $(uname -r)'
+	sh 'sudo reboot'
 }
 
 def pkgMapBranches(String repo)
