@@ -1,8 +1,29 @@
 #!groovy
 
+// import hudson.model.Node
+// import hudson.model.Slave
+// import jenkins.model.Jenkins
+
+// Jenkins jenkins = Jenkins.instance
+// def jenkinsNodes = jenkins.nodes
+
+// for (Node node in jenkinsNodes) 
+// {
+    // Make sure slave is online
+//    if (!node.getComputer().isOffline()) 
+//    {           
+        //Make sure that the slave busy executor number is 0.
+//        if(node.getComputer().countBusy()==0)
+//        {
+           // ...Do somthing...
+//        }
+//    }
+// }
+
 @Library('jenkins-utils-lib') _
 
 def artifactoryRoot = "replibit/elastio/"
+def build_machine = 'BUILD_RECOVERY_ISO'
 
 def supported_fs = [ 'ext2', 'ext3', 'ext4', 'xfs']
 
@@ -65,6 +86,14 @@ pipeline
 				}
 				stages
 				{
+					stage('Update kernel')
+					{
+						when { expression { env.DISTRO == 'fedora39' } }
+						steps
+						{
+							updateKernelWithReboot()
+						}
+					}
 					stage('Publish packages')
 					{
 						when { anyOf {
@@ -82,6 +111,9 @@ pipeline
 
 					stage('Build kernel module')
 					{
+						// agent {
+						//     label "${DISTRO}_template_label"
+						// }
 						steps
 						{
 							script { test_disks[env.DISTRO] = getTestDisks() }
@@ -113,6 +145,25 @@ pipeline
 			}
 		}
 	}
+}
+
+def updateKernelWithReboot()
+{
+	// sh '[ -f /etc/debian_version ] && sudo apt upgrade -y || sudo yum upgrade -y'
+	sh 'echo Kernel version: $(uname -r)'
+	sh 'ip a'
+
+	try {
+		vSphere buildStep: [$class: 'PowerOff', vm: "prefix_fedora39_template_1", timeoutInSeconds: 30], serverName: 'vSphere SLC'
+		vSphere buildStep: [$class: 'PowerOn', vm: "prefix_fedora39_template_1", timeoutInSeconds: 600], serverName: 'vSphere SLC'
+		// sh 'sudo shutdown -h now'
+	} catch (Exception e) {
+		vSphere buildStep: [$class: 'PowerOn', vm: "prefix_fedora39_template_1", timeoutInSeconds: 600], serverName: 'vSphere SLC'
+	}
+	echo "NODE_NAME = ${env.NODE_NAME}"
+	def node_name = env.NODE_NAME
+	Jenkins.instance.getNode(node_name).getComputer().launch()
+	Jenkins.instance.getNode(node_name).getComputer().setAcceptingTasks(true)
 }
 
 def runTests(def supported_fs, String args)
