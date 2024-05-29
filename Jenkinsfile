@@ -161,7 +161,9 @@ def updateKernelWithReboot()
 		vSphere buildStep: [$class: 'PowerOn', vm: "prefix_fedora39_template_1", timeoutInSeconds: 600], serverName: 'vSphere SLC'
 	}
 	echo "NODE_NAME = ${env.NODE_NAME}"
+
 	def node_name = env.NODE_NAME
+
 	Jenkins.instance.getNode(node_name).getComputer().launch()
 	Jenkins.instance.getNode(node_name).getComputer().setAcceptingTasks(true)
 	Jenkins.instance.getNode(node_name).getComputer().setTemporarilyOffline(false, null)
