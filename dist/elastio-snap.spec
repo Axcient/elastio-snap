@@ -114,7 +114,7 @@
 
 
 Name:            elastio-snap
-Version:         0.12.4
+Version:         0.12.5
 Release:         %{_release}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -641,8 +641,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu May 30 2024 Anatoly Zharkov <azharkov@axcient.com> - 0.12.5
 
 * Fri Mar 15 2024 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.4
+- [RA-5171] Remove all versions
+- [RA-5096] Implement support of the Linux Kernel v6.8
+- [RA-5131] Reduce perl depends
+- [RA-5044] ported the netlink tracing functionality
 - [RA-4977] Hide UUID&FS_TYPE for snapshot on CentOS/RadHat7
 - [RA-4971] Implement support of Linux kernel v6.7
 - [RA-4972] clean config build dir
