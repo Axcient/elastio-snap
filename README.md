@@ -60,10 +60,10 @@ This command requires the name of a new COW file to begin tracking changes again
 
 7) Copy the changes:
 ```
-	update-img /dev/elastio-snap0 /.elastio /backups/sda1-bkp
+	elastio-update-img /dev/elastio-snap0 /.elastio /backups/sda1-bkp
 ```
 
-Here we can use the update-img tool included with the driver. It takes 3 parameters: a snapshot (`/dev/elastio-snap0`), the list of changed blocks (`/.elastio` from step 1), and an original backup image (`/backups/sda1-bkp` created in step 3). It copies the blocks listed in the block list from the new snapshot to the existing image, effectively updating the image.
+Here we can use the elastio-update-img tool included with the driver. It takes 3 parameters: a snapshot (`/dev/elastio-snap0`), the list of changed blocks (`/.elastio` from step 1), and an original backup image (`/backups/sda1-bkp` created in step 3). It copies the blocks listed in the block list from the new snapshot to the existing image, effectively updating the image.
 
 8) Clean up the leftover file:
 ```
@@ -71,7 +71,7 @@ Here we can use the update-img tool included with the driver. It takes 3 paramet
 ```
 
 9) Go back to step 4 and repeat:
-Keep in mind it is important to specify a different COW file path for each use. If you use the same file name you will overwrite the list of changed blocks. As a result you will have to use dd to perform a full copy again instead of using the faster `update-img` tool (which only copies the changed blocks).
+Keep in mind it is important to specify a different COW file path for each use. If you use the same file name you will overwrite the list of changed blocks. As a result you will have to use dd to perform a full copy again instead of using the faster `elastio-update-img` tool (which only copies the changed blocks).
 
 If you wish to keep multiple versions of the image, we recommend that you copy your images a snapshotting filesystem (such as BTRFS or ZFS). You can then snapshot the images after updating them (step 3 for the full backup or 7 the differential). This will allow you to keep a history of revisions to the image.
 

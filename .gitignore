@@ -1,6 +1,6 @@
 # Binaries
 app/elioctl
-utils/update-img
+utils/elastio-update-img
 
 # Dynamically generated files
 src/kernel-config.h

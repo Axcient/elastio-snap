@@ -359,8 +359,8 @@ mkdir -p %{buildroot}%{_sysconfdir}/bash_completion.d
 install -p -m 0755 app/bash_completion.d/elioctl %{buildroot}%{_sysconfdir}/bash_completion.d/
 mkdir -p %{buildroot}%{_mandir}/man8
 install -p -m 0644 doc/elioctl.8 %{buildroot}%{_mandir}/man8/elioctl.8
-install -p -m 0755 utils/update-img %{buildroot}%{_bindir}/update-img
-install -p -m 0644 doc/update-img.8 %{buildroot}%{_mandir}/man8/update-img.8
+install -p -m 0755 utils/elastio-update-img %{buildroot}%{_bindir}/elastio-update-img
+install -p -m 0644 doc/elastio-update-img.8 %{buildroot}%{_mandir}/man8/elastio-update-img.8
 
 # Install kmod sources
 mkdir -p %{buildroot}%{_kmod_src_root}
@@ -418,7 +418,7 @@ install -m 755 dist/initramfs/dracut/install %{buildroot}%{_dracut_modules_root}
 
 # Install systemd shutdown script
 mkdir -p %{buildroot}%{_systemd_shutdown}
-install -m 755 dist/system-shutdown/umount_rootfs.shutdown %{buildroot}%{_systemd_shutdown}/umount_rootfs.shutdown
+install -m 755 dist/system-shutdown/elastio.shutdown %{buildroot}%{_systemd_shutdown}/elastio.shutdown
 
 # Install udev rules
 %if %{defined _udev_rules}
@@ -523,10 +523,10 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %endif
 %{_bindir}/elioctl
-%{_bindir}/update-img
+%{_bindir}/elastio-update-img
 %{_sysconfdir}/bash_completion.d/elioctl
 %{_mandir}/man8/elioctl.8*
-%{_mandir}/man8/update-img.8*
+%{_mandir}/man8/elastio-update-img.8*
 # Initramfs scripts for all but RHEL 5
 %if 0%{?rhel} != 5
 %dir %{_sharedstatedir}/elastio/dla
@@ -547,7 +547,7 @@ rm -rf %{buildroot}
 %endif
 %endif
 # Install systemd shutdown script
-%{_systemd_shutdown}/umount_rootfs.shutdown
+%{_systemd_shutdown}/elastio.shutdown
 
 %if %{defined _udev_rules}
 %{_udev_rules}/*
@@ -872,7 +872,7 @@ rm -rf %{buildroot}
 
 * Fri Feb 26 2016 Neal Gompa <ngompa@datto.com> - 0.9.0
 - Updated to 0.9.0
-- img-merge changed to update-img
+- img-merge changed to elastio-update-img
 
 * Wed Feb 24 2016 Neal Gompa <ngompa@datto.com> - 0.8.15
 - Updated to 0.8.15
