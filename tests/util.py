@@ -145,7 +145,7 @@ def fsck(image, fs="ext4"):
 
 
 def update_img(device, cow_file, bkp):
-    cmd = ["../utils/update-img", device, cow_file, bkp]
+    cmd = ["../utils/elastio-update-img", device, cow_file, bkp]
     subprocess.check_call(cmd, stdout=subprocess.DEVNULL, timeout=TIMEOUT_SCALE*180)
 
 

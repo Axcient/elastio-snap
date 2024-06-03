@@ -6,21 +6,21 @@ SOURCES_NL_DEBUG = nl_debug.c
 
 .PHONY: all install uninstall clean
 
-all: nl_debug update-img
+all: nl_debug elastio-update-img
 
 nl_debug: $(SOURCES_NL_DEBUG)
 	$(CC) $(CCFLAGS) -o $@ $(SOURCES_NL_DEBUG)
 
-update-img: $(SOURCES_UPDATE_IMG)
+elastio-update-img: $(SOURCES_UPDATE_IMG)
 	$(CC) $(CCFLAGS) -o $@ -L $(BASE_DIR)/lib $(SOURCES_UPDATE_IMG) -lelastio-snap
 
-install: update-img
+install: elastio-update-img
 	mkdir -p $(INSTALLDIR)
 	install $^ $(INSTALLDIR)
 
 uninstall:
-	$(RM) $(INSTALLDIR)/update-img
+	$(RM) $(INSTALLDIR)/elastio-update-img
 
 clean:
 	$(RM) nl_debug
-	$(RM) update-img
+	$(RM) elastio-update-img
