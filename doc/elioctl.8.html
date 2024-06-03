@@ -129,7 +129,7 @@
 
 <p><code>elioctl transition-to-snapshot [-f &lt;fallocate>] &lt;cow file> &lt;minor></code></p>
 
-<p>Transitions a block device in incremental mode to snapshot mode. This call ensures no writes are missed between tearing down the incremental and setting up the new snapshot. The new snapshot data will be recorded in <code>&lt;cow file></code>. The old cow file will still exist after this and can be used to efficiently copy only changed blocks using a tool succh as <code>update-img</code>.</p>
+<p>Transitions a block device in incremental mode to snapshot mode. This call ensures no writes are missed between tearing down the incremental and setting up the new snapshot. The new snapshot data will be recorded in <code>&lt;cow file></code>. The old cow file will still exist after this and can be used to efficiently copy only changed blocks using a tool succh as <code>elastio-update-img</code>.</p>
 
 <h3 id="destroy">destroy</h3>
 
@@ -167,7 +167,7 @@
 
 <p><code># elioctl transition-to-snapshot /var/backup/elastio1 4</code></p>
 
-<p>Cleanly transitions the incremental to a new snapshot, using <code>/var/backup/elastio1</code> as the new COW file. At this point a second backup can be taken, either doing a full copy with a tool like <code>dd</code> or an incremental copy using a tool such as <code>update-img</code>, if a previous snapshot backup exists.</p>
+<p>Cleanly transitions the incremental to a new snapshot, using <code>/var/backup/elastio1</code> as the new COW file. At this point a second backup can be taken, either doing a full copy with a tool like <code>dd</code> or an incremental copy using a tool such as <code>elastio-update-img</code>, if a previous snapshot backup exists.</p>
 
 <p><code># elioctl reconfigure -c 400 4</code></p>
 
