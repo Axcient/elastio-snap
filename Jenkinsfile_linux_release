@@ -60,6 +60,7 @@ def deployToDebRepos(String branch, String build, String deploy_to)
 		'bionic-agent',
 		'focal-agent',
 		'jammy-agent',
+		'noble-agent',
 		'bullseye-agent',
 		'buster-agent',
 		'bookworm-agent',

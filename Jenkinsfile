@@ -16,6 +16,7 @@ def map_deb_distro = [
 	"ubuntu1804" : "bionic-agent",
 	"ubuntu2004" : "focal-agent",
 	"ubuntu2204" : "jammy-agent",
+	"ubuntu2404" : "noble-agent",
 
 	"debian10" : "buster-agent",
 	"debian11" : "bullseye-agent",
@@ -62,7 +63,7 @@ pipeline
 							'centos7', 'centos8', 'centos9',
 							'alma8', 'alma9',
 							'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', 'fedora38', 'fedora39',
-							'ubuntu1804', 'ubuntu2004', 'ubuntu2204'
+							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404'
 					}
 				}
 				agent {
