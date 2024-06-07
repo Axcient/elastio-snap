@@ -72,6 +72,7 @@ pipeline
 						steps
 						{
 							updateKernelWithReboot()
+							sh 'pwd'
 							checkout scm
 						}
 					}
