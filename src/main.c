@@ -298,10 +298,6 @@ static int elastio_snap_blkdev_put(struct bdev_container *bd_c)
 	return 0;
 }
 
-#ifndef READ_SYNC
-#define READ_SYNC 0
-#endif
-
 #ifndef REQ_WRITE
 #define REQ_WRITE WRITE
 #endif
@@ -3617,7 +3613,7 @@ static int bio_make_read_clone(struct block_device *bdev, struct bio_set *bs, st
 	new_bio->bi_private = tp;
 	new_bio->bi_end_io = on_bio_read_complete;
 	elastio_snap_bio_copy_dev(new_bio, orig_bio);
-	elastio_snap_set_bio_ops(new_bio, REQ_OP_READ, 0);
+	elastio_snap_set_bio_ops(new_bio, REQ_OP_READ, REQ_SYNC);
 	bio_sector(new_bio) = sect;
 	bio_idx(new_bio) = 0;
 
@@ -3746,7 +3742,7 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 	bio_orig_sect = bio_sector(bio);
 
 	elastio_snap_bio_set_dev(bio, dev->sd_base_dev);
-	elastio_snap_set_bio_ops(bio, REQ_OP_READ, READ_SYNC);
+	elastio_snap_set_bio_ops(bio, REQ_OP_READ, REQ_SYNC);
 
 	//detect fastpath for bios completely contained within either the cow file or the base device
 	ret = snap_read_bio_get_mode(dev, bio, &mode);
