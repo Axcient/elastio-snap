@@ -298,6 +298,15 @@ static int elastio_snap_blkdev_put(struct bdev_container *bd_c)
 	return 0;
 }
 
+static size_t elastio_strscpy(char *dst, const char *src, size_t sz)
+{
+#ifdef HAVE_STRSCPY
+	return strscpy(dst, src, sz);
+#else
+	return strlcpy(dst, src, sz);
+#endif
+}
+
 #ifndef READ_SYNC
 #define READ_SYNC 0
 #endif
@@ -5666,8 +5675,8 @@ static void tracer_elastio_snap_info(const struct snap_device *dev, struct elast
 	info->error = tracer_read_fail_state(dev);
 	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : elastio_snap_cow_max_memory_default;
 	info->ignore_snap_errors = dev->sd_ignore_snap_errors;
-	strscpy(info->cow, dev->sd_cow_path, PATH_MAX);
-	strscpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
+	elastio_strscpy(info->cow, dev->sd_cow_path, PATH_MAX);
+	elastio_strscpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
 
 	if(!test_bit(UNVERIFIED, &dev->sd_state)){
 		info->falloc_size = dev->sd_cow->file_max;
