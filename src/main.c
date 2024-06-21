@@ -162,7 +162,8 @@ static struct super_block *elastio_snap_get_super(struct block_device *bdev)
 #endif
 }
 
-#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4 || defined HAVE_BDEV_OPEN_BY_PATH)
+#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4 || \
+		defined HAVE_BDEV_OPEN_BY_PATH || defined HAVE_BDEV_FILE_OPEN_BY_PATH)
 static struct block_device *elastio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
 	int r;
 	struct block_device *retbd;
@@ -200,7 +201,8 @@ fail:
 }
 #endif
 
-#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4 || defined HAVE_BDEV_OPEN_BY_PATH)
+#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4 || \
+		defined HAVE_BDEV_OPEN_BY_PATH || defined HAVE_BDEV_FILE_OPEN_BY_PATH)
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, void *holder){
 	struct block_device *bdev;
@@ -254,6 +256,8 @@ static int elastio_snap_thaw_bdev(struct block_device *bdev, struct super_block 
 struct bdev_container {
 #if defined HAVE_BDEV_OPEN_BY_PATH
 	struct bdev_handle *bd_handle;
+#elif defined HAVE_BDEV_FILE_OPEN_BY_PATH
+	struct file *bdev_file;
 #else
 	struct block_device *bdev;
 #endif
@@ -270,6 +274,12 @@ static struct block_device *elastio_snap_blkdev_get_by_path(struct bdev_containe
 		return ERR_PTR(-ENOTBLK);
 
 	return bd_c->bd_handle->bdev;
+#elif defined HAVE_BDEV_FILE_OPEN_BY_PATH
+	bd_c->bdev_file = bdev_file_open_by_path(path, mode, holder, NULL);
+	if (IS_ERR(bd_c->bdev_file))
+		return ERR_PTR(-ENOTBLK);
+
+	return file_bdev(bd_c->bdev_file);
 #elif defined HAVE_BLKDEV_GET_BY_PATH_4
 	bd_c->bdev = blkdev_get_by_path(path, mode, holder, NULL);
 	return bd_c->bdev;
@@ -288,6 +298,8 @@ static int elastio_snap_blkdev_put(struct bdev_container *bd_c)
 
 #if defined HAVE_BDEV_OPEN_BY_PATH
 	bdev_release(bd_c->bd_handle);
+#elif defined HAVE_BDEV_FILE_OPEN_BY_PATH
+	fput(bd_c->bdev_file);
 #elif defined HAVE_BLKDEV_PUT_1
 	blkdev_put(bd_c->bdev);
 #elif defined HAVE_BLKDEV_PUT_HOLDER
@@ -297,6 +309,26 @@ static int elastio_snap_blkdev_put(struct bdev_container *bd_c)
 #endif
 	return 0;
 }
+
+static size_t elastio_strscpy(char *dst, const char *src, size_t sz)
+{
+#ifdef HAVE_STRSCPY
+	return strscpy(dst, src, sz);
+#else
+	return strlcpy(dst, src, sz);
+#endif
+}
+
+#ifndef HAVE_ALLOC_DISK
+static struct gendisk *elastio_snap_blk_alloc_disk(void)
+{
+#if defined HAVE_BLK_ALLOC_DISK_2
+	return blk_alloc_disk(NULL, NUMA_NO_NODE);
+#else
+	return blk_alloc_disk(NUMA_NO_NODE);
+#endif
+}
+#endif
 
 #ifndef REQ_WRITE
 #define REQ_WRITE WRITE
@@ -5136,7 +5168,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	dev->sd_gd->queue = dev->sd_queue;
 #else
 	LOG_DEBUG("allocating gendisk & queue");
-	dev->sd_gd = blk_alloc_disk(NUMA_NO_NODE);
+	dev->sd_gd = elastio_snap_blk_alloc_disk();
 	if(!dev->sd_gd){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating gendisk");
@@ -5662,8 +5694,8 @@ static void tracer_elastio_snap_info(const struct snap_device *dev, struct elast
 	info->error = tracer_read_fail_state(dev);
 	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : elastio_snap_cow_max_memory_default;
 	info->ignore_snap_errors = dev->sd_ignore_snap_errors;
-	strscpy(info->cow, dev->sd_cow_path, PATH_MAX);
-	strscpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
+	elastio_strscpy(info->cow, dev->sd_cow_path, PATH_MAX);
+	elastio_strscpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
 
 	if(!test_bit(UNVERIFIED, &dev->sd_state)){
 		info->falloc_size = dev->sd_cow->file_max;
