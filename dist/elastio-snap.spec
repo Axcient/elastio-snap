@@ -644,6 +644,8 @@ rm -rf %{buildroot}
 * Thu May 30 2024 Anatoly Zharkov <azharkov@axcient.com> - 0.12.5
 
 * Fri Mar 15 2024 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.4
+- [RA-5272] elastio-snap installation failed on RedHat 7 with 3.10 kernel
+- [RA-5261] Linux Kernel v6.9.4 support
 - [RA-5171] Remove all versions
 - [RA-5096] Implement support of the Linux Kernel v6.8
 - [RA-5131] Reduce perl depends
