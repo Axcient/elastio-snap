@@ -114,7 +114,7 @@
 
 
 Name:            elastio-snap
-Version:         0.12.5
+Version:         0.12.4
 Release:         %{_release}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
