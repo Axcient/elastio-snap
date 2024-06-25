@@ -59,11 +59,11 @@ pipeline
 					{
 						name 'DISTRO'
 						values  'debian8', 'debian9', 'debian10', 'debian11', 'debian12',
-							'amazon2', 'amazon2023',
-							'centos7', 'centos8', 'centos9',
-							'alma8', 'alma9',
-							'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', 'fedora38', 'fedora39',
-							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404'
+								'amazon2', 'amazon2023',
+								'centos7', 'centos8', 'centos9',
+								'alma8', 'alma9',
+								'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', 'fedora38', 'fedora39',
+								'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404'
 					}
 				}
 				agent {
@@ -132,13 +132,21 @@ pipeline
 
 def updateKernelWithReboot()
 {
-	sh '[ -f /etc/debian_version ] && (sudo apt update; sudo apt upgrade -y) || sudo yum upgrade -y'
+	catchError(stageResult: 'FAILURE')
+	{
+		try
+		{
+			sh '[ -f /etc/debian_version ] && (sudo apt update; sudo apt upgrade -y) || sudo yum upgrade -y'
 
-	vSphere buildStep: [$class: 'PowerOff', vm: env.NODE_NAME], serverName: 'vSphere SLC'
-	vSphere buildStep: [$class: 'PowerOn', vm: env.NODE_NAME, timeoutInSeconds: 600], serverName: 'vSphere SLC'
-
-	Jenkins.instance.getNode(env.NODE_NAME).getComputer().connect(true)
-	sleep(time:30,unit:"SECONDS")
+			vSphere buildStep: [$class: 'PowerOff', vm: env.NODE_NAME], serverName: 'vSphere SLC'
+			vSphere buildStep: [$class: 'PowerOn', vm: env.NODE_NAME, timeoutInSeconds: 600], serverName: 'vSphere SLC'
+			Jenkins.instance.getNode(env.NODE_NAME).getComputer().connect(true)
+			sleep(time:30,unit:"SECONDS")
+		}
+		catch(e)
+		{
+		}
+	}
 }
 
 def runTests(def supported_fs, String args)
