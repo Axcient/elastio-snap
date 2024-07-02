@@ -1296,39 +1296,6 @@ static asmlinkage long (*orig_umount)(char __user *name, int flags);
 static asmlinkage long (*orig_oldumount)(char __user *);
 #endif
 
-static int param_set_bio_stats(const char *buffer, const struct kernel_param *kp)
-{
-	int i, minor;
-	struct snap_device *dev;
-
-	if (sscanf(buffer, "%d", &minor) != 1) return -EINVAL;
-
-	dev = snap_devices[minor];
-	if (!dev) return -ENODEV;
-
-	LOG_DEBUG("+-------------------------------+");
-	LOG_DEBUG("| Total bio request statistics  |");
-	LOG_DEBUG("+--------+----------------------+");
-	LOG_DEBUG("|  Type  |        Count         |");
-	LOG_DEBUG("+--------+----------------------+");
-
-	for (i = 0; i < BIO_STATS_MAX_ELEMENTS; i++) {
-		if (dev->sd_bio_stats_total[i])
-			LOG_DEBUG("|   %-3d  |          %-11lu |", i, dev->sd_bio_stats_total[i]);
-	}
-
-	LOG_DEBUG("+--------+----------------------+");
-	LOG_DEBUG("| Traced bio request statistics |");
-	LOG_DEBUG("+--------+----------------------+");
-	for (i = 0; i < BIO_STATS_MAX_ELEMENTS; i++) {
-		if (dev->sd_bio_stats_traced[i])
-			LOG_DEBUG("|   %-3d  |          %-11lu |", i, dev->sd_bio_stats_traced[i]);
-	}
-
-	LOG_DEBUG("+--------+----------------------+");
-	return 0;
-}
-
 /*******************************ATOMIC FUNCTIONS******************************/
 
 static inline int tracer_read_fail_state(const struct snap_device *dev){

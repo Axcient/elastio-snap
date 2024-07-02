@@ -19,7 +19,7 @@ KERNELVERSION ?= $(shell uname -r)
 KDIR := /lib/modules/$(KERNELVERSION)/build
 PWD := $(shell pwd)
 INSTALL_MOD_DIR ?= extra
-EXTRA_CFLAGS := -g -DKERNEL_MODULE
+EXTRA_CFLAGS := -g -DKERNEL_MODULE -Werror
 
 ifeq ($(NETLINK_DEBUG),y)
 EXTRA_CFLAGS += -DNETLINK_DEBUG
