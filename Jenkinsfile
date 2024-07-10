@@ -58,7 +58,7 @@ pipeline
 					axis
 					{
 						name 'DISTRO'
-						values  'rhel9'
+						values  'rhel8'
 					}
 				}
 				agent {
