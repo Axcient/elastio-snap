@@ -4784,6 +4784,9 @@ static int __tracer_setup_base_dev(struct snap_device *dev, const char *bdev_pat
 	//open the base block device
 	LOG_DEBUG("finding block device");
 	dev->sd_base_dev = elastio_snap_blkdev_get_by_path(&dev->sd_bdev_container, bdev_path, FMODE_READ, NULL);
+	printk(KERN_CRIT "dev->sd_base_dev->gd=%p\n", dev->sd_base_dev->bd_disk);
+	printk(KERN_CRIT "dev->sd_base_dev->gd->fops=%p\n", dev->sd_base_dev->bd_disk->fops);
+	printk(KERN_CRIT "dev->sd_base_dev->gd->fops->fopen=%p\n", dev->sd_base_dev->bd_disk->fops->open);
 	if(IS_ERR(dev->sd_base_dev)){
 		ret = PTR_ERR(dev->sd_base_dev);
 		dev->sd_base_dev = NULL;
