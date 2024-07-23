@@ -3928,14 +3928,18 @@ static int snap_mrf_thread(void *data){
 		//safely dequeue a bio
 		bio = bio_queue_dequeue(bq);
 
+		printk(KERN_CRIT "%s(), line %d\n", __func__, __LINE__);
 		//submit the original bio to the block IO layer
 		elastio_snap_bio_op_set_flag(bio, ELASTIO_SNAP_PASSTHROUGH);
+		printk(KERN_CRIT "%s(), line %d\n", __func__, __LINE__);
 
 #ifdef NETLINK_DEBUG
 		nl_trace_event_bio(NL_EVENT_BIO_CALL_ORIG, bio, 0);
 #endif
 
+		printk(KERN_CRIT "%s(), line %d\n", __func__, __LINE__);
 		ret = elastio_snap_call_mrf(dev->sd_orig_mrf, bio);
+		printk(KERN_CRIT "%s(), line %d\n", __func__, __LINE__);
 #ifdef HAVE_MAKE_REQUEST_FN_INT
 		if(ret) generic_make_request(bio);
 #endif
@@ -5151,7 +5155,12 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	dev->sd_gd->minors = 1;
 #endif
 	dev->sd_gd->first_minor = minor;
+	printk(KERN_CRIT "%s(), line %d\n", __func__, __LINE__);
 	dev->sd_gd->fops = &snap_ops;
+	printk(KERN_CRIT "dev->sd_gd=%p\n", dev->sd_gd);
+	printk(KERN_CRIT "dev->sd_gd->fops=%p\n", dev->sd_gd->fops);
+	printk(KERN_CRIT "dev->sd_gd->fops->open=%p\n", dev->sd_gd->fops->open);
+	printk(KERN_CRIT "%s(), line %d\n", __func__, __LINE__);
 
 	//name our gendisk
 	LOG_DEBUG("naming gendisk");
@@ -5186,6 +5195,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 #else
 	add_disk(dev->sd_gd);
 #endif
+	printk(KERN_CRIT "%s(), line %d\n", __func__, __LINE__);
 
 	LOG_DEBUG("starting mrf kernel thread");
 	dev->sd_mrf_thread = kthread_run(snap_mrf_thread, dev, SNAP_MRF_THREAD_NAME_FMT, minor);
@@ -5196,6 +5206,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 		goto error;
 	}
 
+	printk(KERN_CRIT "%s(), line %d: snap_mrf_thread started\n", __func__, __LINE__);
 	atomic64_set(&dev->sd_submitted_cnt, 0);
 	atomic64_set(&dev->sd_received_cnt, 0);
 	atomic64_set(&dev->sd_processed_cnt, 0);
@@ -6850,10 +6861,12 @@ static void snap_release(struct gendisk *gd){
 }
 #else
 static int snap_open(struct block_device *bdev, fmode_t mode){
+	printk(KERN_CRIT "%s(), line %d\n", __func__, __LINE__);
 	return __tracer_open(bdev->bd_disk->private_data);
 }
 
 static void snap_release(struct gendisk *gd, fmode_t mode){
+	printk(KERN_CRIT "%s(), line %d\n", __func__, __LINE__);
 	__tracer_close(gd->private_data);
 }
 #endif
