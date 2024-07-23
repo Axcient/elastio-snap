@@ -1137,6 +1137,7 @@ struct snap_device{
 	struct request_queue *sd_queue; //snap device request queue
 	struct gendisk *sd_gd; //snap device gendisk
 	struct block_device *sd_base_dev; //device being snapshot
+	struct block_device *c_bdev;
 	struct bdev_container sd_bdev_container;
 	char *sd_bdev_path; //base device file path
 	struct cow_manager *sd_cow; //cow manager
@@ -5035,6 +5036,7 @@ static void __tracer_destroy_snap(struct snap_device *dev){
 	}
 
 	if(dev->sd_gd){
+		bdput(dev->c_bdev);
 		LOG_DEBUG("freeing gendisk");
 #ifdef HAVE_DISK_LIVE
 		// Kernel version 5.15+
@@ -5194,6 +5196,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	}
 #else
 	add_disk(dev->sd_gd);
+	dev->c_bdev = bdget_disk(dev->sd_gd, 0);
 #endif
 	printk(KERN_CRIT "%s(), line %d\n", __func__, __LINE__);
 
