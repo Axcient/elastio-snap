@@ -23,6 +23,28 @@ if [ ! -z "$1" ]; then
 	KERNEL_VERSION="$1"
 fi
 
+# As a fallback mechanism, if System.map is not found, download
+# the debug linux kernel package and extract it from there
+extract_system_map() {
+	LINUX_IMAGE_DBG="linux-image-$KERNEL_VERSION-dbg"
+	URL=$(sudo apt-get download --print-uris linux-image-$KERNEL_VERSION-dbg | awk -F\' {'print $2'})
+	echo "Downloading $LINUX_IMAGE_DBG from $URL..."
+	if ! wget -q "$URL"; then
+		return 1
+	fi
+
+	echo "Unpacking..."
+	ar x linux-image-$KERNEL_VERSION-dbg*.deb
+	rm -f control.tar.xz linux-image-$KERNEL_VERSION-dbg*.deb debian-binary
+
+	echo "Processing. This may take a while..."
+	tar -xvf data.tar.xz -C / "./usr/lib/debug/boot/System.map-$KERNEL_VERSION"
+	rm -f data.tar.xz
+	echo "Done."
+
+	[ -f "$SYSTEM_MAP_FILE" ] && return 0 || return 1
+}
+
 SYSTEM_MAP_FILE="/lib/modules/${KERNEL_VERSION}/System.map"
 
 # Use standard location at the /boot
@@ -32,12 +54,21 @@ if [ ! -f "$SYSTEM_MAP_FILE" ] || [ $(cat "$SYSTEM_MAP_FILE" | wc -l) -lt 10 ]; 
 	# Package linux-image-$(uname -r)-dbg installs normal map file.
 	SYSTEM_MAP_FILE="/usr/lib/debug/boot/System.map-${KERNEL_VERSION}"
 
-	# Use fallback option
 	if [ ! -f "$SYSTEM_MAP_FILE" ]; then
-		SYSTEM_MAP_FILE="/proc/kallsyms"
-		if [ "$EUID" -ne 0 ]; then
-			echo "Run 'make' command as sudo or root. Otherwise it is not possible to get addresses from the $SYSTEM_MAP_FILE"
-			exit 1
+		# Obtain the relevant System.map file from the
+		# dbg package if the package is being upgraded
+		if [ "$(uname -r)" != "$KERNEL_VERSION" ]; then
+			echo "No System.map found, trying to extract it from the *.deb package"
+			if [ -f /etc/debian_version ] && ! extract_system_map; then
+				exit 1
+			fi
+		else
+			# If this is not an upgrade, fallback to kallsyms
+			SYSTEM_MAP_FILE="/proc/kallsyms"
+			if [ "$EUID" -ne 0 ]; then
+				echo "Run 'make' command as sudo or root. Otherwise it is not possible to get addresses from the $SYSTEM_MAP_FILE"
+				exit 1
+			fi
 		fi
 	fi
 fi
