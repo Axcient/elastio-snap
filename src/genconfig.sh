@@ -25,20 +25,21 @@ fi
 
 # As a fallback mechanism, if System.map is not found, download
 # the debug linux kernel package and extract it from there
-extract_system_map() {
+deb_extract_system_map() {
 	LINUX_IMAGE_DBG="linux-image-$KERNEL_VERSION-dbg"
 	URL=$(sudo apt-get download --print-uris linux-image-$KERNEL_VERSION-dbg | awk -F\' {'print $2'})
 	echo "Downloading $LINUX_IMAGE_DBG from $URL..."
 	if ! wget -q "$URL"; then
+		echo "Could not download $LINUX_IMAGE_DBG"
 		return 1
 	fi
 
 	echo "Unpacking..."
-	ar x linux-image-$KERNEL_VERSION-dbg*.deb
+	ar x linux-image-$KERNEL_VERSION-dbg*.deb || return 2
 	rm -f control.tar.xz linux-image-$KERNEL_VERSION-dbg*.deb debian-binary
 
 	echo "Processing. This may take a while..."
-	tar -xvf data.tar.xz -C / "./usr/lib/debug/boot/System.map-$KERNEL_VERSION"
+	tar -xvf data.tar.xz -C / "./usr/lib/debug/boot/System.map-$KERNEL_VERSION" || return 3
 	rm -f data.tar.xz
 	echo "Done."
 
@@ -59,7 +60,8 @@ if [ ! -f "$SYSTEM_MAP_FILE" ] || [ $(cat "$SYSTEM_MAP_FILE" | wc -l) -lt 10 ]; 
 		# dbg package if the package is being upgraded
 		if [ "$(uname -r)" != "$KERNEL_VERSION" ]; then
 			echo "No System.map found, trying to extract it from the *.deb package"
-			if [ -f /etc/debian_version ] && ! extract_system_map; then
+			if [ -f /etc/debian_version ] && ! deb_extract_system_map; then
+				echo "Could not extract System.map automatically. Aborting process."
 				exit 1
 			fi
 		else
