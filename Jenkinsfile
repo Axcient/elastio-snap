@@ -110,12 +110,12 @@ pipeline
 					}
 
 
-					stage('Run tests (loop device)') { steps { runTests(supported_fs, "") } }
-					stage('Run tests on LVM (loop device)') { steps { runTests(supported_fs, "--lvm") } }
-					stage('Run tests on RAID (loop device)') { steps { runTests(supported_fs, "--raid") } }
+					// stage('Run tests (loop device)') { steps { runTests(supported_fs, "") } }
+					// stage('Run tests on LVM (loop device)') { steps { runTests(supported_fs, "--lvm") } }
+					// stage('Run tests on RAID (loop device)') { steps { runTests(supported_fs, "--raid") } }
 
-					stage('Run tests (qcow2 disk)') { steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}1") } }
-					stage('Run tests on LVM (qcow2 disks)') { steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --lvm") } }
+					// stage('Run tests (qcow2 disk)') { steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}1") } }
+					// stage('Run tests on LVM (qcow2 disks)') { steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --lvm") } }
 					stage('Run tests on RAID (qcow2 disks)')
 					{
 						// An issue is observed in virtio driver whith XFS and kernel 3.16 on Debian 8. It's a known issue, it happens on

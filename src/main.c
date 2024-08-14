@@ -5210,7 +5210,7 @@ static void __tracer_destroy_cow_thread(struct snap_device *dev){
 		 *  - https://jira.slc.efscloud.net/browse/RA-5394
 		 * for the issue description
 		 */
-                elastio_snap_wait_for_release(dev);
+		elastio_snap_wait_for_release(dev);
 		kthread_stop(dev->sd_cow_thread);
 		dev->sd_cow_thread = NULL;
 	}
