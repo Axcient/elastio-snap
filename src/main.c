@@ -4133,38 +4133,6 @@ error:
 	bio_free_clone(bio);
 }
 
-static inline bool elastio_snap_request_queue_stopped(struct request_queue *q)
-{
-	if (!q) {
-		LOG_ERROR(-EINVAL, "invalid request queue");
-		return true;
-	}
-
-#ifdef HAVE_BLK_STOP_QUEUE
-	return blk_queue_stopped(q);
-#else
-	return blk_mq_queue_stopped(q);
-#endif
-}
-
-static void elastio_snap_stop_request_queue(struct request_queue *q)
-{
-	unsigned long flags = 0;
-	MAYBE_UNUSED(flags);
-
-	if (!q)
-		return;
-
-#ifdef HAVE_BLK_STOP_QUEUE
-	spin_lock_irqsave(q->queue_lock, flags);
-	blk_stop_queue(q);
-	blk_queue_flush(q, REQ_FLUSH);
-	spin_unlock_irqrestore(q->queue_lock, flags);
-#else
-	blk_mq_stop_hw_queues(q);
-#endif
-}
-
 /** Resolves issue https://github.com/elastio/elastio-snap/issues/170 */
 static inline void wait_for_bio_complete(struct snap_device *dev)
 {
@@ -4507,9 +4475,6 @@ static MRF_RETURN_TYPE snap_mrf(struct bio *bio){
 		elastio_snap_bio_endio(bio, wrap_err_io(dev));
 		MRF_RETURN(0);
 	} else if (!test_bit(ACTIVE, &dev->sd_state)){
-		elastio_snap_bio_endio(bio, -EBUSY);
-		MRF_RETURN(0);
-	} else if (elastio_snap_request_queue_stopped(dev->sd_queue)) {
 		elastio_snap_bio_endio(bio, -EBUSY);
 		MRF_RETURN(0);
 	}
@@ -5237,15 +5202,15 @@ error:
 static void __tracer_destroy_cow_thread(struct snap_device *dev){
 	if(dev->sd_cow_thread){
 		LOG_DEBUG("stopping cow thread");
-		/* Need to stop the request queue to prevent
-		 * unprocessed bio requests to be frozen in
-		 * the bio queue and hence freeze the driver
+		/* Need to wait the readers to complete, otherwise
+		 * unprocessed bio requests will be frozen in the
+		 * driver's bio queue and hence freeze the driver
 		 * Please refer to:
 		 *  - https://github.com/elastio/elastio-snap/issues/169
 		 *  - https://jira.slc.efscloud.net/browse/RA-5394
 		 * for the issue description
 		 */
-		elastio_snap_stop_request_queue(dev->sd_queue);
+                elastio_snap_wait_for_release(dev);
 		kthread_stop(dev->sd_cow_thread);
 		dev->sd_cow_thread = NULL;
 	}
