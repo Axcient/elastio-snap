@@ -32,5 +32,6 @@
 #include <linux/random.h>
 #include <asm/div64.h>
 #include <linux/mm.h>
+#include <linux/blk-mq.h>
 
 #endif

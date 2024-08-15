@@ -1132,6 +1132,7 @@ struct snap_device{
 	unsigned long sd_bio_stats_traced[BIO_STATS_MAX_ELEMENTS]; // histogram of processed bio requests
 	atomic_t sd_refs; //number of users who have this device open
 	atomic_t sd_fail_code; //failure return code
+	atomic_t sd_ignore_requests; //if snap_mrf should ignore new bio requests
 	sector_t sd_sect_off; //starting sector of base block device
 	sector_t sd_size; //size of device in sectors
 	struct request_queue *sd_queue; //snap device request queue
@@ -4135,25 +4136,17 @@ error:
 
 static inline bool elastio_snap_request_queue_stopped(struct request_queue *q)
 {
-	if (!q) {
-		LOG_ERROR(-EINVAL, "invalid request queue");
-		return true;
-	}
-
-#ifdef HAVE_BLK_STOP_QUEUE
-	return blk_queue_stopped(q);
-#else
-	return blk_mq_queue_stopped(q);
-#endif
+	struct snap_device *dev = q->queuedata;
+	return atomic_read(&dev->sd_ignore_requests);
 }
 
 static void elastio_snap_stop_request_queue(struct request_queue *q)
 {
 	unsigned long flags = 0;
+	struct snap_device *dev = q->queuedata;
 	MAYBE_UNUSED(flags);
 
-	if (!q)
-		return;
+	atomic_set(&dev->sd_ignore_requests, 1);
 
 #ifdef HAVE_BLK_STOP_QUEUE
 	spin_lock_irqsave(q->queue_lock, flags);
