@@ -58,14 +58,13 @@ pipeline
 					axis
 					{
 						name 'DISTRO'
-						// values  'debian8', 'debian9', 'debian10', 'debian11', 'debian12',
-						//     'amazon2', 'amazon2023',
-						//     'centos7', 'centos8', 'centos9',
-						//     'alma8', 'alma9',
-						//     'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', 'fedora38', 'fedora39',
-						//     'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
-						//     'rhel7', 'rhel8', 'rhel9'
-						values 'rhel7'
+						values  'debian8', 'debian9', 'debian10', 'debian11', 'debian12',
+							'amazon2', 'amazon2023',
+							'centos7', 'centos8', 'centos9',
+							'alma8', 'alma9',
+							'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', 'fedora38', 'fedora39',
+							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
+							'rhel7', 'rhel8', 'rhel9'
 					}
 				}
 				agent {
@@ -111,12 +110,12 @@ pipeline
 					}
 
 
-					// stage('Run tests (loop device)') { steps { runTests(supported_fs, "") } }
-					// stage('Run tests on LVM (loop device)') { steps { runTests(supported_fs, "--lvm") } }
-					// stage('Run tests on RAID (loop device)') { steps { runTests(supported_fs, "--raid") } }
+					stage('Run tests (loop device)') { steps { runTests(supported_fs, "") } }
+					stage('Run tests on LVM (loop device)') { steps { runTests(supported_fs, "--lvm") } }
+					stage('Run tests on RAID (loop device)') { steps { runTests(supported_fs, "--raid") } }
 
-					// stage('Run tests (qcow2 disk)') { steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}1") } }
-					// stage('Run tests on LVM (qcow2 disks)') { steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --lvm") } }
+					stage('Run tests (qcow2 disk)') { steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}1") } }
+					stage('Run tests on LVM (qcow2 disks)') { steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --lvm") } }
 					stage('Run tests on RAID (qcow2 disks)')
 					{
 						// An issue is observed in virtio driver whith XFS and kernel 3.16 on Debian 8. It's a known issue, it happens on
