@@ -4142,16 +4142,28 @@ static inline bool elastio_snap_request_queue_stopped(struct request_queue *q)
 
 static void elastio_snap_stop_request_queue(struct request_queue *q)
 {
-	unsigned long flags = 0;
-	struct snap_device *dev = q->queuedata;
+	unsigned long flags;
+	struct snap_device *dev;
+
 	MAYBE_UNUSED(flags);
+
+	/* The request queue will not exist
+	 * in the incremental mode
+	 */
+	if (!q)
+		return;
+
+	dev = q->queuedata;
+	if (!dev) {
+		LOG_ERROR(-ENODEV, "no device found, skip request queue stop");
+		return;
+	}
 
 	atomic_set(&dev->sd_ignore_requests, 1);
 
 #ifdef HAVE_BLK_STOP_QUEUE
 	spin_lock_irqsave(q->queue_lock, flags);
 	blk_stop_queue(q);
-	blk_queue_flush(q, REQ_FLUSH);
 	spin_unlock_irqrestore(q->queue_lock, flags);
 #else
 	blk_mq_stop_hw_queues(q);
@@ -4745,6 +4757,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 static void __tracer_init(struct snap_device *dev){
 	LOG_DEBUG("initializing tracer");
 	atomic_set(&dev->sd_fail_code, 0);
+	atomic_set(&dev->sd_ignore_requests, 0);
 	bio_queue_init(&dev->sd_cow_bios);
 	bio_queue_init(&dev->sd_orig_bios);
 	sset_queue_init(&dev->sd_pending_ssets);
