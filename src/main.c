@@ -4515,6 +4515,7 @@ static MRF_RETURN_TYPE snap_mrf(struct bio *bio){
 		elastio_snap_bio_endio(bio, -EBUSY);
 		MRF_RETURN(0);
 	} else if (elastio_snap_request_queue_stopped(dev->sd_queue)) {
+		LOG_WARN("bio request ignored because the request queue was stopped");
 		elastio_snap_bio_endio(bio, -EBUSY);
 		MRF_RETURN(0);
 	}
@@ -6028,6 +6029,7 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 			break;
 		}
 
+		elastio_snap_wait_for_release(snap_devices[minor]);
 		ret = ioctl_transition_inc(minor);
 		if(ret) break;
 
