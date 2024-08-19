@@ -6029,7 +6029,9 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 			break;
 		}
 
-		elastio_snap_wait_for_release(snap_devices[minor]);
+		if (snap_devices[minor])
+			elastio_snap_wait_for_release(snap_devices[minor]);
+
 		ret = ioctl_transition_inc(minor);
 		if(ret) break;
 
