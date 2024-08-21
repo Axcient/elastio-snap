@@ -91,7 +91,6 @@ class TestTransitionToIncremental(DeviceTestCase):
         # * EFBIG: The module performed the sync
         # We want the later to happen, so try to transition without calling sync.
 
-        os.sync()
         err = elastio_snap.transition_to_incremental(self.minor)
         if (err != errno.EFBIG):
             self.skipTest("Kernel flushed before module")
