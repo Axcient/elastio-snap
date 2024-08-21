@@ -1141,6 +1141,7 @@ struct snap_device{
 	unsigned long sd_bio_stats_traced[BIO_STATS_MAX_ELEMENTS]; // histogram of processed bio requests
 	atomic_t sd_refs; //number of users who have this device open
 	atomic_t sd_fail_code; //failure return code
+	atomic_t sd_ignore_requests; //if snap_mrf should ignore new bio requests
 	sector_t sd_sect_off; //starting sector of base block device
 	sector_t sd_size; //size of device in sectors
 	struct request_queue *sd_queue; //snap device request queue
@@ -1224,16 +1225,7 @@ static MRF_RETURN_TYPE snap_mrf(struct bio *bio);
 #endif
 
 static const struct block_device_operations snap_ops = {
-	/**
-	 * The 'owner' field is commented as it has proven itself
-	 * to cause problems with module refcount getting
-	 * unexpectedly incremented in rare situations.
-	 *
-	 * The issue was described here:
-	 * https://github.com/elastio/elastio-snap/issues/169
-	 */
-
-	/* .owner = THIS_MODULE, */
+	.owner = THIS_MODULE,
 	.open = snap_open,
 	.release = snap_release,
 #ifdef USE_BDOPS_SUBMIT_BIO
@@ -4200,6 +4192,42 @@ error:
 	bio_free_clone(bio);
 }
 
+static inline bool elastio_snap_request_queue_stopped(struct request_queue *q)
+{
+	struct snap_device *dev = q->queuedata;
+	return atomic_read(&dev->sd_ignore_requests);
+}
+
+static void elastio_snap_stop_request_queue(struct request_queue *q)
+{
+	unsigned long flags;
+	struct snap_device *dev;
+
+	MAYBE_UNUSED(flags);
+
+	/* The request queue will not exist
+	 * in the incremental mode
+	 */
+	if (!q)
+		return;
+
+	dev = q->queuedata;
+	if (!dev) {
+		LOG_ERROR(-ENODEV, "no device found, skip request queue stop");
+		return;
+	}
+
+	atomic_set(&dev->sd_ignore_requests, 1);
+
+#ifdef HAVE_BLK_STOP_QUEUE
+	spin_lock_irqsave(q->queue_lock, flags);
+	blk_stop_queue(q);
+	spin_unlock_irqrestore(q->queue_lock, flags);
+#else
+	blk_mq_stop_hw_queues(q);
+#endif
+}
+
 /** Resolves issue https://github.com/elastio/elastio-snap/issues/170 */
 static inline void wait_for_bio_complete(struct snap_device *dev)
 {
@@ -4535,13 +4563,17 @@ static MRF_RETURN_TYPE snap_mrf(struct bio *bio){
 #endif
 
 	//if a write request somehow gets sent in, discard it
-	if(bio_data_dir(bio)){
+	if (bio_data_dir(bio)) {
 		elastio_snap_bio_endio(bio, -EOPNOTSUPP);
 		MRF_RETURN(0);
-	}else if(tracer_read_fail_state(dev)){
+	} else if (tracer_read_fail_state(dev)) {
 		elastio_snap_bio_endio(bio, wrap_err_io(dev));
 		MRF_RETURN(0);
-	}else if(!test_bit(ACTIVE, &dev->sd_state)){
+	} else if (!test_bit(ACTIVE, &dev->sd_state)) {
+		elastio_snap_bio_endio(bio, -EBUSY);
+		MRF_RETURN(0);
+	} else if (elastio_snap_request_queue_stopped(dev->sd_queue)) {
+		LOG_WARN("bio request ignored because the request queue was stopped");
 		elastio_snap_bio_endio(bio, -EBUSY);
 		MRF_RETURN(0);
 	}
@@ -4786,6 +4818,7 @@ static void __tracer_init(struct snap_device *dev){
 	atomic_set(&dev->sd_fail_code, 0);
 	atomic_set(&dev->sd_read_lock, 0);
 	atomic64_set(&dev->sd_read_lock_resched, 0);
+	atomic_set(&dev->sd_ignore_requests, 0);
 	bio_queue_init(&dev->sd_cow_bios);
 	bio_queue_init(&dev->sd_orig_bios);
 	sset_queue_init(&dev->sd_pending_ssets);
@@ -5271,6 +5304,16 @@ error:
 static void __tracer_destroy_cow_thread(struct snap_device *dev){
 	if(dev->sd_cow_thread){
 		LOG_DEBUG("stopping cow thread");
+		/* Need to wait the readers to complete, otherwise
+		 * unprocessed bio requests will be frozen in the
+		 * driver's bio queue and hence freeze the driver
+		 * Please refer to:
+		 *  - https://github.com/elastio/elastio-snap/issues/169
+		 *  - https://jira.slc.efscloud.net/browse/RA-5394
+		 * for the issue description
+		 */
+		elastio_snap_stop_request_queue(dev->sd_queue);
+		elastio_snap_wait_for_release(dev);
 		kthread_stop(dev->sd_cow_thread);
 		dev->sd_cow_thread = NULL;
 	}
@@ -6045,6 +6088,9 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 			LOG_ERROR(ret, "error copying minor number from user space");
 			break;
 		}
+
+		if (snap_devices[minor])
+			elastio_snap_wait_for_release(snap_devices[minor]);
 
 		ret = ioctl_transition_inc(minor);
 		if(ret) break;
