@@ -2727,7 +2727,6 @@ static inline void elastio_snap_mm_unlock(struct mm_struct *mm)
 struct kmem_cache **vm_area_cache = (VM_AREA_CACHEP_ADDR != 0) ?
 	(struct kmem_cache **) (VM_AREA_CACHEP_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
-
 static struct vm_area_struct *elastio_snap_vm_area_allocate(struct mm_struct *mm)
 {
 	struct vm_area_struct *vma;
@@ -2752,6 +2751,17 @@ static struct vm_area_struct *elastio_snap_vm_area_allocate(struct mm_struct *mm
 static void elastio_snap_vm_area_free(struct vm_area_struct *vma)
 {
 	kmem_cache_free(*vm_area_cache, vma);
+}
+
+static unsigned long elastio_snap_get_unmapped_area(struct file *file, unsigned long addr, unsigned long len, unsigned long pgoff, unsigned long flags) {
+#if __GET_UNMAPPED_AREA_ADDR
+	unsigned long (*__get_unmapped_area)(struct file *file, unsigned long addr, unsigned long len, unsigned long pgoff, unsigned long flags, vm_flags_t vm_flags) = (__GET_UNMAPPED_AREA_ADDR != 0) ?
+		(unsigned long (*) (struct file *file, unsigned long addr, unsigned long len, unsigned long pgoff, unsigned long flags, vm_flags_t vm_flags)) (__GET_UNMAPPED_AREA_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
+
+	return __get_unmapped_area(file, addr, len, pgoff, flags, 0);
+#else
+	return get_unmapped_area(file, addr, len, pgoff, flags);
+#endif
 }
 
 static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct file *filp)
@@ -2789,7 +2799,7 @@ static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct fil
 
 	elastio_snap_mm_lock(task->mm);
 
-	start_addr = get_unmapped_area(NULL, 0, cow_ext_buf_size, 0, VM_READ | VM_WRITE);
+	start_addr = elastio_snap_get_unmapped_area(NULL, 0, cow_ext_buf_size, 0, VM_READ | VM_WRITE);
 	if (IS_ERR_VALUE(start_addr))
 		return start_addr; // returns -EPERM if failed
 
