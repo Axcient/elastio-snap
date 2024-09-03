@@ -1091,7 +1091,7 @@ struct tracing_params{
 #ifdef USE_BDOPS_SUBMIT_BIO
 struct tracing_ops {
 	struct block_device_operations *bd_ops;
-#ifdef HAVE_BD_HAS_SUBMIT_BIO
+#if defined HAVE_BD_HAS_SUBMIT_BIO || defined HAVE_BD_HAS_SUBMIT_BIO_FLAGS
 	bool has_submit_bio; // kernel version >= 6.4
 #endif
 	atomic_t refs;
@@ -3531,6 +3531,8 @@ static int tracing_ops_alloc(struct snap_device *dev) {
 	// Set tracing_mrf as submit_bio. All other content is already there copied from the original structure.
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
 	trops->has_submit_bio = dev->sd_base_dev->bd_has_submit_bio;
+#elif defined HAVE_BD_HAS_SUBMIT_BIO_FLAGS
+	trops->has_submit_bio = bdev_test_flag(dev->sd_base_dev, BD_HAS_SUBMIT_BIO);
 #endif
 	trops->bd_ops->submit_bio = tracing_mrf;
 	atomic_set(&trops->refs, 1);
@@ -4778,6 +4780,8 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		if(new_ops) elastio_snap_set_bd_ops(bdev, new_ops);
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
 		bdev->bd_has_submit_bio = true; // kernel version >= 6.4
+#elif defined HAVE_BD_HAS_SUBMIT_BIO_FLAGS
+		bdev_set_flag(bdev, BD_HAS_SUBMIT_BIO);
 #endif
 #else
 		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf);
@@ -4795,6 +4799,11 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		if(new_ops) elastio_snap_set_bd_ops(bdev, new_ops);
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
 		bdev->bd_has_submit_bio = dev->sd_tracing_ops->has_submit_bio; // kernel version >= 6.4
+#elif defined HAVE_BD_HAS_SUBMIT_BIO_FLAGS
+		if (dev->sd_tracing_ops->has_submit_bio)
+			bdev_set_flag(bdev, BD_HAS_SUBMIT_BIO);
+		else
+			bdev_clear_flag(bdev, BD_HAS_SUBMIT_BIO);
 #endif
 #else
 // Linux version older than 5.8
