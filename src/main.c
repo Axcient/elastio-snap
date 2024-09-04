@@ -1091,7 +1091,7 @@ struct tracing_params{
 #ifdef USE_BDOPS_SUBMIT_BIO
 struct tracing_ops {
 	struct block_device_operations *bd_ops;
-#ifdef HAVE_BD_HAS_SUBMIT_BIO
+#if defined HAVE_BD_HAS_SUBMIT_BIO || defined HAVE_BD_HAS_SUBMIT_BIO_FLAGS
 	bool has_submit_bio; // kernel version >= 6.4
 #endif
 	atomic_t refs;
@@ -2727,7 +2727,6 @@ static inline void elastio_snap_mm_unlock(struct mm_struct *mm)
 struct kmem_cache **vm_area_cache = (VM_AREA_CACHEP_ADDR != 0) ?
 	(struct kmem_cache **) (VM_AREA_CACHEP_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
-
 static struct vm_area_struct *elastio_snap_vm_area_allocate(struct mm_struct *mm)
 {
 	struct vm_area_struct *vma;
@@ -2752,6 +2751,17 @@ static struct vm_area_struct *elastio_snap_vm_area_allocate(struct mm_struct *mm
 static void elastio_snap_vm_area_free(struct vm_area_struct *vma)
 {
 	kmem_cache_free(*vm_area_cache, vma);
+}
+
+static unsigned long elastio_snap_get_unmapped_area(struct file *file, unsigned long addr, unsigned long len, unsigned long pgoff, unsigned long flags) {
+#if __GET_UNMAPPED_AREA_ADDR
+	unsigned long (*__get_unmapped_area)(struct file *file, unsigned long addr, unsigned long len, unsigned long pgoff, unsigned long flags, vm_flags_t vm_flags) = (__GET_UNMAPPED_AREA_ADDR != 0) ?
+		(unsigned long (*) (struct file *file, unsigned long addr, unsigned long len, unsigned long pgoff, unsigned long flags, vm_flags_t vm_flags)) (__GET_UNMAPPED_AREA_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
+
+	return __get_unmapped_area(file, addr, len, pgoff, flags, 0);
+#else
+	return get_unmapped_area(file, addr, len, pgoff, flags);
+#endif
 }
 
 static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct file *filp)
@@ -2789,7 +2799,7 @@ static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct fil
 
 	elastio_snap_mm_lock(task->mm);
 
-	start_addr = get_unmapped_area(NULL, 0, cow_ext_buf_size, 0, VM_READ | VM_WRITE);
+	start_addr = elastio_snap_get_unmapped_area(NULL, 0, cow_ext_buf_size, 0, VM_READ | VM_WRITE);
 	if (IS_ERR_VALUE(start_addr))
 		return start_addr; // returns -EPERM if failed
 
@@ -3521,6 +3531,8 @@ static int tracing_ops_alloc(struct snap_device *dev) {
 	// Set tracing_mrf as submit_bio. All other content is already there copied from the original structure.
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
 	trops->has_submit_bio = dev->sd_base_dev->bd_has_submit_bio;
+#elif defined HAVE_BD_HAS_SUBMIT_BIO_FLAGS
+	trops->has_submit_bio = bdev_test_flag(dev->sd_base_dev, BD_HAS_SUBMIT_BIO);
 #endif
 	trops->bd_ops->submit_bio = tracing_mrf;
 	atomic_set(&trops->refs, 1);
@@ -4768,6 +4780,8 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		if(new_ops) elastio_snap_set_bd_ops(bdev, new_ops);
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
 		bdev->bd_has_submit_bio = true; // kernel version >= 6.4
+#elif defined HAVE_BD_HAS_SUBMIT_BIO_FLAGS
+		bdev_set_flag(bdev, BD_HAS_SUBMIT_BIO);
 #endif
 #else
 		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf);
@@ -4785,6 +4799,11 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		if(new_ops) elastio_snap_set_bd_ops(bdev, new_ops);
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
 		bdev->bd_has_submit_bio = dev->sd_tracing_ops->has_submit_bio; // kernel version >= 6.4
+#elif defined HAVE_BD_HAS_SUBMIT_BIO_FLAGS
+		if (dev->sd_tracing_ops->has_submit_bio)
+			bdev_set_flag(bdev, BD_HAS_SUBMIT_BIO);
+		else
+			bdev_clear_flag(bdev, BD_HAS_SUBMIT_BIO);
 #endif
 #else
 // Linux version older than 5.8
