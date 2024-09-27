@@ -114,7 +114,7 @@
 
 
 Name:            elastio-snap
-Version:         0.12.4
+Version:         0.12.6
 Release:         %{_release}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -641,8 +641,23 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 19 2024 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.6
+
+* Thu May 30 2024 Anatoly Zharkov <azharkov@axcient.com> - 0.12.5
+ - [RA-5261] Implement Linux Kernel v6.9 support (#75)
+ - [RA-5262] Increase unit tests timeout for Ubuntu 24.04 (#79)
+ - [RA-5272] elastio-snap installation failed on RedHat 7 with 3.10 kernel (#76)
+ - [RA-4567] Affected files are found on Ubuntu (#78)
+ - [RA-5286] Add RedHat distributions to the CI pipeline (#81)
+ - [RA-5413] Debian 11 crashes after the kernel update (#82)
+ - [RA-5394] RHEL7 crashes on unit tests (#83)
+ - [RA-5502] Implement driver support for v6.10 (#84)
 
 * Fri Mar 15 2024 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.4
+- [RA-5171] Remove all versions
+- [RA-5096] Implement support of the Linux Kernel v6.8
+- [RA-5131] Reduce perl depends
+- [RA-5044] ported the netlink tracing functionality
 - [RA-4977] Hide UUID&FS_TYPE for snapshot on CentOS/RadHat7
 - [RA-4971] Implement support of Linux kernel v6.7
 - [RA-4972] clean config build dir

@@ -6,6 +6,7 @@
 # Additional contributions by Elastio Software, Inc are Copyright (C) 2020 Elastio Software Inc.
 #
 
+import time
 import errno
 import os
 import platform
@@ -34,12 +35,14 @@ class TestTransitionToIncremental(DeviceTestCase):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
         self.addCleanup(elastio_snap.destroy, self.minor)
 
+        os.sync()
         self.assertEqual(elastio_snap.transition_to_incremental(self.minor), 0)
 
     def test_transition_active_incremental(self):
         self.assertEqual(elastio_snap.setup(self.minor, self.device, self.cow_full_path), 0)
         self.addCleanup(elastio_snap.destroy, self.minor)
 
+        os.sync()
         self.assertEqual(elastio_snap.transition_to_incremental(self.minor), 0)
         self.assertEqual(elastio_snap.transition_to_incremental(self.minor), errno.EINVAL)
 

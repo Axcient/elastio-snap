@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 
-TIMEOUT_SCALE = 2
+TIMEOUT_SCALE = 10
 
 
 def mount(device, path, opts=None):

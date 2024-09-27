@@ -162,7 +162,8 @@ static struct super_block *elastio_snap_get_super(struct block_device *bdev)
 #endif
 }
 
-#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4 || defined HAVE_BDEV_OPEN_BY_PATH)
+#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4 || \
+		defined HAVE_BDEV_OPEN_BY_PATH || defined HAVE_BDEV_FILE_OPEN_BY_PATH)
 static struct block_device *elastio_snap_lookup_bdev(const char *pathname, fmode_t mode) {
 	int r;
 	struct block_device *retbd;
@@ -200,7 +201,8 @@ fail:
 }
 #endif
 
-#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4 || defined HAVE_BDEV_OPEN_BY_PATH)
+#if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4 || \
+		defined HAVE_BDEV_OPEN_BY_PATH || defined HAVE_BDEV_FILE_OPEN_BY_PATH)
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, void *holder){
 	struct block_device *bdev;
@@ -254,6 +256,8 @@ static int elastio_snap_thaw_bdev(struct block_device *bdev, struct super_block 
 struct bdev_container {
 #if defined HAVE_BDEV_OPEN_BY_PATH
 	struct bdev_handle *bd_handle;
+#elif defined HAVE_BDEV_FILE_OPEN_BY_PATH
+	struct file *bdev_file;
 #else
 	struct block_device *bdev;
 #endif
@@ -270,6 +274,12 @@ static struct block_device *elastio_snap_blkdev_get_by_path(struct bdev_containe
 		return ERR_PTR(-ENOTBLK);
 
 	return bd_c->bd_handle->bdev;
+#elif defined HAVE_BDEV_FILE_OPEN_BY_PATH
+	bd_c->bdev_file = bdev_file_open_by_path(path, mode, holder, NULL);
+	if (IS_ERR(bd_c->bdev_file))
+		return ERR_PTR(-ENOTBLK);
+
+	return file_bdev(bd_c->bdev_file);
 #elif defined HAVE_BLKDEV_GET_BY_PATH_4
 	bd_c->bdev = blkdev_get_by_path(path, mode, holder, NULL);
 	return bd_c->bdev;
@@ -288,6 +298,8 @@ static int elastio_snap_blkdev_put(struct bdev_container *bd_c)
 
 #if defined HAVE_BDEV_OPEN_BY_PATH
 	bdev_release(bd_c->bd_handle);
+#elif defined HAVE_BDEV_FILE_OPEN_BY_PATH
+	fput(bd_c->bdev_file);
 #elif defined HAVE_BLKDEV_PUT_1
 	blkdev_put(bd_c->bdev);
 #elif defined HAVE_BLKDEV_PUT_HOLDER
@@ -298,8 +310,24 @@ static int elastio_snap_blkdev_put(struct bdev_container *bd_c)
 	return 0;
 }
 
-#ifndef READ_SYNC
-#define READ_SYNC 0
+static size_t elastio_strscpy(char *dst, const char *src, size_t sz)
+{
+#ifdef HAVE_STRSCPY
+	return strscpy(dst, src, sz);
+#else
+	return strlcpy(dst, src, sz);
+#endif
+}
+
+#ifndef HAVE_ALLOC_DISK
+static struct gendisk *elastio_snap_blk_alloc_disk(void)
+{
+#if defined HAVE_BLK_ALLOC_DISK_2
+	return blk_alloc_disk(NULL, NUMA_NO_NODE);
+#else
+	return blk_alloc_disk(NUMA_NO_NODE);
+#endif
+}
 #endif
 
 #ifndef REQ_WRITE
@@ -1063,7 +1091,7 @@ struct tracing_params{
 #ifdef USE_BDOPS_SUBMIT_BIO
 struct tracing_ops {
 	struct block_device_operations *bd_ops;
-#ifdef HAVE_BD_HAS_SUBMIT_BIO
+#if defined HAVE_BD_HAS_SUBMIT_BIO || defined HAVE_BD_HAS_SUBMIT_BIO_FLAGS
 	bool has_submit_bio; // kernel version >= 6.4
 #endif
 	atomic_t refs;
@@ -1113,6 +1141,7 @@ struct snap_device{
 	unsigned long sd_bio_stats_traced[BIO_STATS_MAX_ELEMENTS]; // histogram of processed bio requests
 	atomic_t sd_refs; //number of users who have this device open
 	atomic_t sd_fail_code; //failure return code
+	atomic_t sd_ignore_requests; //if snap_mrf should ignore new bio requests
 	sector_t sd_sect_off; //starting sector of base block device
 	sector_t sd_size; //size of device in sectors
 	struct request_queue *sd_queue; //snap device request queue
@@ -1196,16 +1225,7 @@ static MRF_RETURN_TYPE snap_mrf(struct bio *bio);
 #endif
 
 static const struct block_device_operations snap_ops = {
-	/**
-	 * The 'owner' field is commented as it has proven itself
-	 * to cause problems with module refcount getting
-	 * unexpectedly incremented in rare situations.
-	 *
-	 * The issue was described here:
-	 * https://github.com/elastio/elastio-snap/issues/169
-	 */
-
-	/* .owner = THIS_MODULE, */
+	.owner = THIS_MODULE,
 	.open = snap_open,
 	.release = snap_release,
 #ifdef USE_BDOPS_SUBMIT_BIO
@@ -2713,7 +2733,6 @@ static inline void elastio_snap_mm_unlock(struct mm_struct *mm)
 struct kmem_cache **vm_area_cache = (VM_AREA_CACHEP_ADDR != 0) ?
 	(struct kmem_cache **) (VM_AREA_CACHEP_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
 
-
 static struct vm_area_struct *elastio_snap_vm_area_allocate(struct mm_struct *mm)
 {
 	struct vm_area_struct *vma;
@@ -2738,6 +2757,17 @@ static struct vm_area_struct *elastio_snap_vm_area_allocate(struct mm_struct *mm
 static void elastio_snap_vm_area_free(struct vm_area_struct *vma)
 {
 	kmem_cache_free(*vm_area_cache, vma);
+}
+
+static unsigned long elastio_snap_get_unmapped_area(struct file *file, unsigned long addr, unsigned long len, unsigned long pgoff, unsigned long flags) {
+#if __GET_UNMAPPED_AREA_ADDR
+	unsigned long (*__get_unmapped_area)(struct file *file, unsigned long addr, unsigned long len, unsigned long pgoff, unsigned long flags, vm_flags_t vm_flags) = (__GET_UNMAPPED_AREA_ADDR != 0) ?
+		(unsigned long (*) (struct file *file, unsigned long addr, unsigned long len, unsigned long pgoff, unsigned long flags, vm_flags_t vm_flags)) (__GET_UNMAPPED_AREA_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
+
+	return __get_unmapped_area(file, addr, len, pgoff, flags, 0);
+#else
+	return get_unmapped_area(file, addr, len, pgoff, flags);
+#endif
 }
 
 static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct file *filp)
@@ -2775,7 +2805,7 @@ static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct fil
 
 	elastio_snap_mm_lock(task->mm);
 
-	start_addr = get_unmapped_area(NULL, 0, cow_ext_buf_size, 0, VM_READ | VM_WRITE);
+	start_addr = elastio_snap_get_unmapped_area(NULL, 0, cow_ext_buf_size, 0, VM_READ | VM_WRITE);
 	if (IS_ERR_VALUE(start_addr))
 		return start_addr; // returns -EPERM if failed
 
@@ -3507,6 +3537,8 @@ static int tracing_ops_alloc(struct snap_device *dev) {
 	// Set tracing_mrf as submit_bio. All other content is already there copied from the original structure.
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
 	trops->has_submit_bio = dev->sd_base_dev->bd_has_submit_bio;
+#elif defined HAVE_BD_HAS_SUBMIT_BIO_FLAGS
+	trops->has_submit_bio = bdev_test_flag(dev->sd_base_dev, BD_HAS_SUBMIT_BIO);
 #endif
 	trops->bd_ops->submit_bio = tracing_mrf;
 	atomic_set(&trops->refs, 1);
@@ -3623,7 +3655,7 @@ static int bio_make_read_clone(struct block_device *bdev, struct bio_set *bs, st
 	new_bio->bi_private = tp;
 	new_bio->bi_end_io = on_bio_read_complete;
 	elastio_snap_bio_copy_dev(new_bio, orig_bio);
-	elastio_snap_set_bio_ops(new_bio, REQ_OP_READ, 0);
+	elastio_snap_set_bio_ops(new_bio, REQ_OP_READ, REQ_SYNC);
 	bio_sector(new_bio) = sect;
 	bio_idx(new_bio) = 0;
 
@@ -3752,7 +3784,7 @@ static int snap_handle_read_bio(const struct snap_device *dev, struct bio *bio){
 	bio_orig_sect = bio_sector(bio);
 
 	elastio_snap_bio_set_dev(bio, dev->sd_base_dev);
-	elastio_snap_set_bio_ops(bio, REQ_OP_READ, READ_SYNC);
+	elastio_snap_set_bio_ops(bio, REQ_OP_READ, REQ_SYNC);
 
 	//detect fastpath for bios completely contained within either the cow file or the base device
 	ret = snap_read_bio_get_mode(dev, bio, &mode);
@@ -4178,6 +4210,42 @@ error:
 	bio_free_clone(bio);
 }
 
+static inline bool elastio_snap_request_queue_stopped(struct request_queue *q)
+{
+	struct snap_device *dev = q->queuedata;
+	return atomic_read(&dev->sd_ignore_requests);
+}
+
+static void elastio_snap_stop_request_queue(struct request_queue *q)
+{
+	unsigned long flags;
+	struct snap_device *dev;
+
+	MAYBE_UNUSED(flags);
+
+	/* The request queue will not exist
+	 * in the incremental mode
+	 */
+	if (!q)
+		return;
+
+	dev = q->queuedata;
+	if (!dev) {
+		LOG_ERROR(-ENODEV, "no device found, skip request queue stop");
+		return;
+	}
+
+	atomic_set(&dev->sd_ignore_requests, 1);
+
+#ifdef HAVE_BLK_STOP_QUEUE
+	spin_lock_irqsave(q->queue_lock, flags);
+	blk_stop_queue(q);
+	spin_unlock_irqrestore(q->queue_lock, flags);
+#else
+	blk_mq_stop_hw_queues(q);
+#endif
+}
+
 /** Resolves issue https://github.com/elastio/elastio-snap/issues/170 */
 static inline void wait_for_bio_complete(struct snap_device *dev)
 {
@@ -4513,13 +4581,17 @@ static MRF_RETURN_TYPE snap_mrf(struct bio *bio){
 #endif
 
 	//if a write request somehow gets sent in, discard it
-	if(bio_data_dir(bio)){
+	if (bio_data_dir(bio)) {
 		elastio_snap_bio_endio(bio, -EOPNOTSUPP);
 		MRF_RETURN(0);
-	}else if(tracer_read_fail_state(dev)){
+	} else if (tracer_read_fail_state(dev)) {
 		elastio_snap_bio_endio(bio, wrap_err_io(dev));
 		MRF_RETURN(0);
-	}else if(!test_bit(ACTIVE, &dev->sd_state)){
+	} else if (!test_bit(ACTIVE, &dev->sd_state)) {
+		elastio_snap_bio_endio(bio, -EBUSY);
+		MRF_RETURN(0);
+	} else if (elastio_snap_request_queue_stopped(dev->sd_queue)) {
+		LOG_WARN("bio request ignored because the request queue was stopped");
 		elastio_snap_bio_endio(bio, -EBUSY);
 		MRF_RETURN(0);
 	}
@@ -4714,6 +4786,8 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		if(new_ops) elastio_snap_set_bd_ops(bdev, new_ops);
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
 		bdev->bd_has_submit_bio = true; // kernel version >= 6.4
+#elif defined HAVE_BD_HAS_SUBMIT_BIO_FLAGS
+		bdev_set_flag(bdev, BD_HAS_SUBMIT_BIO);
 #endif
 #else
 		if(new_mrf) elastio_snap_set_bd_mrf(bdev, new_mrf);
@@ -4731,6 +4805,11 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		if(new_ops) elastio_snap_set_bd_ops(bdev, new_ops);
 #ifdef HAVE_BD_HAS_SUBMIT_BIO
 		bdev->bd_has_submit_bio = dev->sd_tracing_ops->has_submit_bio; // kernel version >= 6.4
+#elif defined HAVE_BD_HAS_SUBMIT_BIO_FLAGS
+		if (dev->sd_tracing_ops->has_submit_bio)
+			bdev_set_flag(bdev, BD_HAS_SUBMIT_BIO);
+		else
+			bdev_clear_flag(bdev, BD_HAS_SUBMIT_BIO);
 #endif
 #else
 // Linux version older than 5.8
@@ -4764,6 +4843,7 @@ static void __tracer_init(struct snap_device *dev){
 	atomic_set(&dev->sd_fail_code, 0);
 	atomic_set(&dev->sd_read_lock, 0);
 	atomic64_set(&dev->sd_read_lock_resched, 0);
+	atomic_set(&dev->sd_ignore_requests, 0);
 	bio_queue_init(&dev->sd_cow_bios);
 	bio_queue_init(&dev->sd_orig_bios);
 	sset_queue_init(&dev->sd_pending_ssets);
@@ -5146,7 +5226,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	dev->sd_gd->queue = dev->sd_queue;
 #else
 	LOG_DEBUG("allocating gendisk & queue");
-	dev->sd_gd = blk_alloc_disk(NUMA_NO_NODE);
+	dev->sd_gd = elastio_snap_blk_alloc_disk();
 	if(!dev->sd_gd){
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "error allocating gendisk");
@@ -5249,6 +5329,16 @@ error:
 static void __tracer_destroy_cow_thread(struct snap_device *dev){
 	if(dev->sd_cow_thread){
 		LOG_DEBUG("stopping cow thread");
+		/* Need to wait the readers to complete, otherwise
+		 * unprocessed bio requests will be frozen in the
+		 * driver's bio queue and hence freeze the driver
+		 * Please refer to:
+		 *  - https://github.com/elastio/elastio-snap/issues/169
+		 *  - https://jira.slc.efscloud.net/browse/RA-5394
+		 * for the issue description
+		 */
+		elastio_snap_stop_request_queue(dev->sd_queue);
+		elastio_snap_wait_for_release(dev);
 		kthread_stop(dev->sd_cow_thread);
 		dev->sd_cow_thread = NULL;
 	}
@@ -5672,8 +5762,8 @@ static void tracer_elastio_snap_info(const struct snap_device *dev, struct elast
 	info->error = tracer_read_fail_state(dev);
 	info->cache_size = (dev->sd_cache_size)? dev->sd_cache_size : elastio_snap_cow_max_memory_default;
 	info->ignore_snap_errors = dev->sd_ignore_snap_errors;
-	strscpy(info->cow, dev->sd_cow_path, PATH_MAX);
-	strscpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
+	elastio_strscpy(info->cow, dev->sd_cow_path, PATH_MAX);
+	elastio_strscpy(info->bdev, dev->sd_bdev_path, PATH_MAX);
 
 	if(!test_bit(UNVERIFIED, &dev->sd_state)){
 		info->falloc_size = dev->sd_cow->file_max;
@@ -6023,6 +6113,9 @@ static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 			LOG_ERROR(ret, "error copying minor number from user space");
 			break;
 		}
+
+		if (snap_devices[minor])
+			elastio_snap_wait_for_release(snap_devices[minor]);
 
 		ret = ioctl_transition_inc(minor);
 		if(ret) break;
