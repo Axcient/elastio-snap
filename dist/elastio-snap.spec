@@ -139,7 +139,12 @@ Source0:         %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 Source0:         %{name}.tar.gz
 %endif
 
+# Ubuntu 24.04 as of now does not install gcc-14 by default
+%if 0%{?ubuntu} >= 24
+BuildRequires:   gcc >= 14
+%else
 BuildRequires:   gcc
+%endif
 BuildRequires:   make
 BuildRequires:   rsync
 
