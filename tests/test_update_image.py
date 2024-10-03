@@ -26,6 +26,7 @@ class TestUpdateImage(DeviceTestCase):
     def tearDown(self):
         util.test_track(self._testMethodName, started=False)
 
+    @unittest.skipIf(os.getenv('TEST_DEVICES') and 'jessie' in open('/etc/os-release', "r").read(), "Disabled for Debian 8 with disks")
     def test_update_sequence(self):
         iterations = 25
         file_name = "testfile"

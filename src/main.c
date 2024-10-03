@@ -2307,12 +2307,9 @@ static int file_allocate(struct cow_manager *cm, struct file *f, uint64_t offset
 	file_get_absolute_pathname(f, &abs_path, &abs_path_len);
 
 	//try regular fallocate
-	//temporarity disabled
-#if 0
 	ret = real_fallocate(f, offset, length);
 	if(ret && ret != -EOPNOTSUPP) goto error;
 	else if(!ret) goto out;
-#endif
 
 	//fallocate isn't supported, fall back on writing zeros
 	LOG_WARN("fallocate is not supported for %s, falling back on writing zeros",
@@ -2345,6 +2342,7 @@ static int file_allocate(struct cow_manager *cm, struct file *f, uint64_t offset
 		cond_resched();
 	}
 
+out:
 	ret = vfs_fsync(f, 0);
 	if (ret) {
 		LOG_ERROR(ret, "could not sync the file, but let's continue");
@@ -4763,6 +4761,8 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	elastio_snap_bdevname(bdev, bdev_name);
 
 	if(origsb){
+		LOG_DEBUG("force syncing the disk '%s'", bdev_name);
+		sync_filesystem(origsb);
 		drop_super(origsb);
 
 		//freeze and sync block device
