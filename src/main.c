@@ -2343,6 +2343,10 @@ static int file_allocate(struct cow_manager *cm, struct file *f, uint64_t offset
 	}
 
 out:
+	ret = vfs_fsync(f, 0);
+	if (ret) {
+		LOG_ERROR(ret, "could not sync the file, but let's continue");
+	}
 
 	if(page_buf) free_page((unsigned long)page_buf);
 	if(abs_path) kfree(abs_path);
@@ -4757,6 +4761,8 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	elastio_snap_bdevname(bdev, bdev_name);
 
 	if(origsb){
+		LOG_DEBUG("force syncing the disk '%s'", bdev_name);
+		sync_filesystem(origsb);
 		drop_super(origsb);
 
 		//freeze and sync block device
