@@ -139,12 +139,7 @@ Source0:         %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 Source0:         %{name}.tar.gz
 %endif
 
-# Ubuntu 24.04 as of now does not install gcc-14 by default
-%if 0%{?ubuntu} >= 2404
-BuildRequires:   gcc >= 14
-%else
 BuildRequires:   gcc
-%endif
 BuildRequires:   make
 BuildRequires:   rsync
 
@@ -250,6 +245,11 @@ BuildArch:       noarch
 # Please refer to https://github.com/elastio/devboxes/pull/230
 Requires:        linux-image-%(uname -r)-dbg
 %endif
+%endif
+
+# Ubuntu 24.04 as of now does not install gcc-14 by default
+%if 0%{?ubuntu} >= 2404
+Requires:   gcc-14
 %endif
 
 %if 0%{?rhel} >= 6 || 0%{?fedora} >= 23 || 0%{?suse_version} >= 1315
