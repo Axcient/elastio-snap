@@ -247,6 +247,11 @@ Requires:        linux-image-%(uname -r)-dbg
 %endif
 %endif
 
+# Ubuntu 24.04 as of now does not install gcc-14 by default
+%if 0%{?ubuntu} >= 2404
+Requires:   gcc-14
+%endif
+
 %if 0%{?rhel} >= 6 || 0%{?fedora} >= 23 || 0%{?suse_version} >= 1315
 Requires(preun): dkms >= 2.3
 Requires:        dkms >= 2.3
