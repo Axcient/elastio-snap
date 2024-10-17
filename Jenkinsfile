@@ -58,13 +58,7 @@ pipeline
 					axis
 					{
 						name 'DISTRO'
-						values  'debian8', 'debian9', 'debian10', 'debian11', 'debian12',
-							'amazon2', 'amazon2023',
-							'centos7', 'centos8', 'centos9',
-							'alma8', 'alma9',
-							'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', 'fedora38', 'fedora39',
-							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
-							'rhel7', 'rhel8', 'rhel9'
+						values  'fedora40'
 					}
 				}
 				agent {
