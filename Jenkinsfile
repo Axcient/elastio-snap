@@ -62,7 +62,7 @@ pipeline
 							'amazon2', 'amazon2023',
 							'centos7', 'centos8', 'centos9',
 							'alma8', 'alma9',
-							'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', 'fedora38', 'fedora39',
+							'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', 'fedora38', 'fedora40',
 							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
 							'rhel7', 'rhel8', 'rhel9'
 					}
@@ -74,7 +74,7 @@ pipeline
 				{
 					stage('Update kernel')
 					{
-						when { expression { env.DISTRO == 'fedora39' } }
+						when { expression { env.DISTRO == 'fedora40' } }
 						steps
 						{
 							updateKernelWithReboot()
