@@ -1213,10 +1213,10 @@ static void elastio_snap_proc_stop(struct seq_file *m, void *v);
 static int elastio_snap_proc_open(struct inode *inode, struct file *filp);
 static int elastio_snap_proc_release(struct inode *inode, struct file *file);
 
-#define WAIT_SUBMITTED_BIOS_MSEC 500
+#define WAIT_SUBMITTED_BIOS_MSEC 5000
 // wait msec value to be at least 100 msec as wait loop uses it by msleep of (100) timeout pieces
-#define ELASTIO_SNAP_WAIT_FOR_RELEASE_MSEC              500
-#define ELASTIO_SNAP_WAIT_FOR_RELEASE_MAX_SLEEP_COUNT   100
+#define ELASTIO_SNAP_WAIT_FOR_RELEASE_MSEC              5000
+#define ELASTIO_SNAP_WAIT_FOR_RELEASE_MAX_SLEEP_COUNT   1000
 static void elastio_snap_wait_for_release(struct snap_device *dev);
 
 #ifdef USE_BDOPS_SUBMIT_BIO
