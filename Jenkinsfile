@@ -135,10 +135,7 @@ pipeline
 							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
 							expression { env.DISTRO != 'debian8' }
 						}
-						steps
-						{
-							runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --raid")
-						}
+						steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --raid") }
 					}
 
 					stage('Run tests multipart  (qcow2 disks)') {
