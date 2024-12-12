@@ -465,6 +465,9 @@ if [ "$1" -ge "1" ]; then
 %endif
     if [ -f /usr/lib/dkms/common.postinst ]; then
         /usr/lib/dkms/common.postinst %{name} %{version} || exit $?
+    else
+        dkms add %{name}/%{version}
+        dkms autoinstall || exit $?
     fi
 # It was always necessary for "%{_vendor}" == "debbuild" and now necessary for CentOS/Fedora and any distro with
 # DKMS version starting from 2.8.8. Now DKMS has a parameter '--modprobe-on-install' for the 'dkms install' command.
