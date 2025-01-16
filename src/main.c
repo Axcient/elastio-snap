@@ -223,6 +223,7 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 }
 #endif
 
+#if 0
 static int elastio_snap_freeze_bdev(struct block_device *bdev, struct super_block **sb)
 {
 	int ret;
@@ -252,6 +253,7 @@ static int elastio_snap_thaw_bdev(struct block_device *bdev, struct super_block 
 #endif
 	return ret;
 }
+#endif
 
 struct bdev_container {
 #if defined HAVE_BDEV_OPEN_BY_PATH
@@ -4748,7 +4750,20 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 
 		//freeze and sync block device
 		LOG_DEBUG("freezing '%s'", bdev_name);
-		ret = elastio_snap_freeze_bdev(bdev, &sb);
+
+#ifdef HAVE_FREEZE_SUPER
+		if (origsb->s_op->freeze_super)
+			ret = origsb->s_op->freeze_super(sb);
+		else
+			ret = freeze_super(origsb);
+#else
+		if (origsb->s_op->freeze_super)
+			ret = origsb->s_op->freeze_super(sb, FREEZE_HOLDER_KERNEL);
+		else
+			ret = freeze_super(origsb, FREEZE_HOLDER_KERNEL);
+#endif
+
+		/* ret = elastio_snap_freeze_bdev(bdev, &sb); */
 		if (ret) {
 			LOG_ERROR((ret), "error freezing '%s': error", bdev_name);
 			return ret;
@@ -4806,7 +4821,11 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	if(origsb){
 		//thaw the block device
 		LOG_DEBUG("thawing '%s'", bdev_name);
-		ret = elastio_snap_thaw_bdev(bdev, sb);
+		if (sb->s_op->thaw_super)
+			ret = sb->s_op->thaw_super(sb);
+		else
+			ret = thaw_super(sb);
+		/* ret = elastio_snap_thaw_bdev(bdev, sb); */
 		if(ret){
 			LOG_ERROR(ret, "error thawing '%s'", bdev_name);
 			//we can't reasonably undo what we've done at this point, and we've replaced the mrf.

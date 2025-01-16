@@ -1,18 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * Copyright (C) 2020 Elastio Software Inc.
+ * Copyright (C) 2024 Axcient Software Inc.
  */
 
-// 2.6.34 < kernel_version
+// kernel_version < 6.6
 
 #include "includes.h"
 MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
-	struct super_block sb;
-	int res;
-
-	res = freeze_super(&sb);
-	res = thaw_super(&sb);
+    struct super_block *sb;
+	freeze_super(sb);
 }
