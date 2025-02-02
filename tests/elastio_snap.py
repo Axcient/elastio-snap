@@ -108,6 +108,7 @@ def cow_preallocate(device, fallocated_space, cow_file):
 def setup(minor, device, cow_file, fallocated_space=0, cache_size=0, ignore_snap_errors=False):
     cow_preallocate(device, fallocated_space, cow_file)
 
+    mount_point = util.fsfreeze(device)
     ret = lib.elastio_snap_setup_snapshot(
         minor,
         device.encode("utf-8"),
@@ -116,6 +117,7 @@ def setup(minor, device, cow_file, fallocated_space=0, cache_size=0, ignore_snap
         cache_size,
         ignore_snap_errors
     )
+    util.fsunfreeze(mount_point)
 
     if ret != 0:
         return ffi.errno
@@ -182,13 +184,16 @@ def transition_to_incremental(minor):
 
 
 def transition_to_snapshot(minor, cow_file, fallocated_space=0):
-    cow_preallocate(get_dev_by_minor(minor), fallocated_space, cow_file)
+    device = get_dev_by_minor(minor)
+    cow_preallocate(device, fallocated_space, cow_file)
 
+    mount_point = util.fsfreeze(device)
     ret = lib.elastio_snap_transition_snapshot(
         minor,
         cow_file.encode("utf-8"),
         fallocated_space
     )
+    util.fsunfreeze(mount_point)
 
     if ret != 0:
         return ffi.errno

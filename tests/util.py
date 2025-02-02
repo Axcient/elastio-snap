@@ -44,6 +44,22 @@ def unmount(path, retry_on_dev_busy=True):
             else:
                 time.sleep(1)
 
+def fsfreeze(device):
+    cmd = [ "findmnt", "-n", "-o", "TARGET", device ]
+    mount_point = subprocess.check_output(cmd, timeout=TIMEOUT_SCALE*10).rstrip().decode("utf-8")
+
+    print("Freezing mount point {}".format(mount_point))
+    cmd = [ "fsfreeze", "-f", mount_point ]
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*10)
+
+    return mount_point
+
+
+def fsunfreeze(mount_point):
+    print("Unfreezing mount point {}".format(mount_point))
+    cmd = [ "fsfreeze", "-u", mount_point ]
+    subprocess.check_call(cmd, timeout=TIMEOUT_SCALE*10)
+
 
 def dd(ifile, ofile, count, **kwargs):
     cmd = ["dd", "status=none", "if={}".format(ifile), "of={}".format(ofile), "count={}".format(count)]
