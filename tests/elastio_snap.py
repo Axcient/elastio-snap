@@ -6,9 +6,12 @@
 #
 
 from cffi import FFI
+import os
+import math
 import util
 import time
 import errno
+import json
 
 ffi = FFI()
 
@@ -64,10 +67,47 @@ lib = ffi.dlopen("../lib/libelastio-snap.so")
 class State:
     SNAPSHOT = 1
     ACTIVE = 2
-    UNVERIFIED = 4
+
+def get_dev_by_minor(minor):
+    print("Minor received: {}".format(minor))
+    with open('/proc/elastio-snap-info', 'r') as file:
+        data = json.load(file)
+
+    devices = data['devices']
+    for i in range(len(devices)):
+        if minor == devices[i]['minor']:
+            return devices[i]['block_device']
+
+
+def get_cow_file(minor):
+    print("Minor received: {}".format(minor))
+    with open('/proc/elastio-snap-info', 'r') as file:
+        data = json.load(file)
+
+    devices = data['devices']
+    for i in range(len(devices)):
+        if minor == devices[i]['minor']:
+            print(devices[i])
+            return devices[i]['cow_file']
+
+def cow_preallocate(device, fallocated_space, cow_file):
+    if fallocated_space == 0:
+        page_size = util.os_page_size()
+        cow_file_size_factor = 0.1  # 10% by default if `fallocated_space` is 0
+        cow_file_size = util.dev_size_bytes(device) * cow_file_size_factor
+
+        # rounding up aligned to the PAGE_SIZE
+        cow_file_size = int(math.ceil(cow_file_size / page_size) * page_size)
+        fallocated_space = (int) (cow_file_size / 1024 / 1024)
+        print("Opening cow file {}".format(cow_file))
+        with open(cow_file, "wb") as file:
+            file.seek(fallocated_space * 1024 * 1024 - 1)
+            file.write(b"\0")
 
 
 def setup(minor, device, cow_file, fallocated_space=0, cache_size=0, ignore_snap_errors=False):
+    cow_preallocate(device, fallocated_space, cow_file)
+
     ret = lib.elastio_snap_setup_snapshot(
         minor,
         device.encode("utf-8"),
@@ -142,6 +182,8 @@ def transition_to_incremental(minor):
 
 
 def transition_to_snapshot(minor, cow_file, fallocated_space=0):
+    cow_preallocate(get_dev_by_minor(minor), fallocated_space, cow_file)
+
     ret = lib.elastio_snap_transition_snapshot(
         minor,
         cow_file.encode("utf-8"),

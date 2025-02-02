@@ -3020,7 +3020,7 @@ static int cow_init(struct snap_device *dev, const char *path, uint64_t elements
 	}
 
 	LOG_DEBUG("creating cow file");
-	ret = file_open(path, O_CREAT | O_TRUNC, &cm->filp);
+	ret = file_open(path, O_RDWR, &cm->filp);
 	if(ret) goto error;
 
 	cm->version = COW_VERSION_CHANGED_BLOCKS;
@@ -3085,8 +3085,8 @@ static int cow_init(struct snap_device *dev, const char *path, uint64_t elements
 		}
 	}
 
-	ret = file_allocate(cm, cm->filp, 0, file_max);
-	if(ret) goto error;
+	/* ret = file_allocate(cm, cm->filp, 0, file_max); */
+	/* if(ret) goto error; */
 
 	dev->sd_cow_inode = cm->filp->f_inode;
 
