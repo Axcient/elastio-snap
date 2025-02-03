@@ -223,6 +223,7 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 }
 #endif
 
+#if 0
 static int elastio_snap_freeze_bdev(struct block_device *bdev, struct super_block **sb)
 {
 	int ret;
@@ -252,6 +253,7 @@ static int elastio_snap_thaw_bdev(struct block_device *bdev, struct super_block 
 #endif
 	return ret;
 }
+#endif
 
 struct bdev_container {
 #if defined HAVE_BDEV_OPEN_BY_PATH
@@ -2588,12 +2590,12 @@ static int __cow_write_header(struct cow_manager *cm, int is_clean){
 	ch->version = cm->version;
 	ch->nr_changed_blocks = cm->nr_changed_blocks;
 
-	ret = file_write(cm, ch, 0, COW_HEADER_SIZE);
-	if(ret){
-		LOG_ERROR(ret, "error syncing cow manager header");
-		kfree(ch);
-		return ret;
-	}
+	/* ret = file_write(cm, ch, 0, COW_HEADER_SIZE); */
+	/* if(ret){ */
+	/*     LOG_ERROR(ret, "error syncing cow manager header"); */
+	/*     kfree(ch); */
+	/*     return ret; */
+	/* } */
 
 	kfree(ch);
 	return 0;
@@ -4735,7 +4737,6 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 #endif
 	int ret;
 	struct super_block *origsb = elastio_snap_get_super(bdev);
-	struct super_block *sb = NULL;
 	char bdev_name[BDEVNAME_SIZE];
 	MAYBE_UNUSED(ret);
 
@@ -4746,6 +4747,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		sync_filesystem(origsb);
 		drop_super(origsb);
 
+#if 0
 		//freeze and sync block device
 		LOG_DEBUG("freezing '%s'", bdev_name);
 		ret = elastio_snap_freeze_bdev(bdev, &sb);
@@ -4753,6 +4755,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 			LOG_ERROR((ret), "error freezing '%s': error", bdev_name);
 			return ret;
 		}
+#endif
 	}
 	else{
 		LOG_WARN("warning: no super found for device '%s', unable to freeze it", bdev_name);
@@ -4803,6 +4806,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 #endif
 	}
 
+#if 0
 	if(origsb){
 		//thaw the block device
 		LOG_DEBUG("thawing '%s'", bdev_name);
@@ -4813,7 +4817,7 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 			//pretend we succeeded so we don't break the block device
 		}
 	}
-
+#endif
 	return 0;
 }
 
