@@ -4737,7 +4737,6 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 #endif
 	int ret;
 	struct super_block *origsb = elastio_snap_get_super(bdev);
-	struct super_block *sb = NULL;
 	char bdev_name[BDEVNAME_SIZE];
 	MAYBE_UNUSED(ret);
 
@@ -4753,12 +4752,12 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 
 #ifdef HAVE_FREEZE_SUPER
 		if (origsb->s_op->freeze_super)
-			ret = origsb->s_op->freeze_super(sb);
+			ret = origsb->s_op->freeze_super(origsb);
 		else
 			ret = freeze_super(origsb);
 #else
 		if (origsb->s_op->freeze_super)
-			ret = origsb->s_op->freeze_super(sb, FREEZE_HOLDER_KERNEL);
+			ret = origsb->s_op->freeze_super(origsb, FREEZE_HOLDER_KERNEL);
 		else
 			ret = freeze_super(origsb, FREEZE_HOLDER_KERNEL);
 #endif
@@ -4821,10 +4820,17 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	if(origsb){
 		//thaw the block device
 		LOG_DEBUG("thawing '%s'", bdev_name);
-		if (sb->s_op->thaw_super)
-			ret = sb->s_op->thaw_super(sb);
+#ifdef HAVE_FREEZE_SUPER
+		if (origsb->s_op->thaw_super)
+			ret = origsb->s_op->thaw_super(origsb);
 		else
-			ret = thaw_super(sb);
+			ret = thaw_super(origsb);
+#else
+		if (origsb->s_op->thaw_super)
+			ret = origsb->s_op->thaw_super(origsb, FREEZE_HOLDER_KERNEL);
+		else
+			ret = thaw_super(origsb, FREEZE_HOLDER_KERNEL);
+#endif
 		/* ret = elastio_snap_thaw_bdev(bdev, sb); */
 		if(ret){
 			LOG_ERROR(ret, "error thawing '%s'", bdev_name);
