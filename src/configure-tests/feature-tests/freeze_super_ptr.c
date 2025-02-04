@@ -11,5 +11,6 @@ MODULE_LICENSE("GPL");
 
 static inline void dummy(void){
     struct super_block *sb;
-	freeze_super(sb);
+	if (sb->s_op->freeze_super)
+		sb->s_op->freeze_super(sb);
 }

@@ -223,38 +223,6 @@ static struct block_device *blkdev_get_by_path(const char *path, fmode_t mode, v
 }
 #endif
 
-#if 0
-static int elastio_snap_freeze_bdev(struct block_device *bdev, struct super_block **sb)
-{
-	int ret;
-
-#ifdef HAVE_THAW_BDEV_INT
-	*sb = freeze_bdev(bdev);
-	ret = (IS_ERR(*sb)) ? PTR_ERR(*sb) : 0;
-#elif defined HAVE_BDEV_FREEZE
-	/* Starting from v6.8 */
-	ret = bdev_freeze(bdev);
-#else
-	ret = freeze_bdev(bdev);
-#endif
-	return ret;
-}
-
-static int elastio_snap_thaw_bdev(struct block_device *bdev, struct super_block *sb)
-{
-	int ret;
-#ifdef HAVE_THAW_BDEV_INT
-	ret = thaw_bdev(bdev, sb);
-#elif defined HAVE_BDEV_FREEZE
-	/* Starting from v6.8 */
-	ret = bdev_thaw(bdev);
-#else
-	ret = thaw_bdev(bdev);
-#endif
-	return ret;
-}
-#endif
-
 struct bdev_container {
 #if defined HAVE_BDEV_OPEN_BY_PATH
 	struct bdev_handle *bd_handle;
@@ -4750,10 +4718,12 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 		//freeze and sync block device
 		LOG_DEBUG("freezing '%s'", bdev_name);
 
-#ifdef HAVE_FREEZE_SUPER
+#ifndef HAVE_FREEZE_SUPER_2
+#ifdef HAVE_FREEZE_SUPER_PTR
 		if (origsb->s_op->freeze_super)
 			ret = origsb->s_op->freeze_super(origsb);
 		else
+#endif
 			ret = freeze_super(origsb);
 #else
 		if (origsb->s_op->freeze_super)
@@ -4820,10 +4790,12 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	if(origsb){
 		//thaw the block device
 		LOG_DEBUG("thawing '%s'", bdev_name);
-#ifdef HAVE_FREEZE_SUPER
+#ifndef HAVE_FREEZE_SUPER_2
+#ifdef HAVE_FREEZE_SUPER_PTR
 		if (origsb->s_op->thaw_super)
 			ret = origsb->s_op->thaw_super(origsb);
 		else
+#endif
 			ret = thaw_super(origsb);
 #else
 		if (origsb->s_op->thaw_super)
