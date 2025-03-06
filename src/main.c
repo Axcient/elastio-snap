@@ -509,6 +509,9 @@ static void elastio_snap_bio_endio(struct bio *bio, int err){
 	#define bio_idx(bio) (bio)->bi_iter.bi_idx
 #endif
 
+#ifndef EXT4_SUPER_MAGIC
+#define EXT4_SUPER_MAGIC 0xEF53
+#endif
 
 #ifndef HAVE_MNT_WANT_WRITE
 #define mnt_want_write(x) 0
