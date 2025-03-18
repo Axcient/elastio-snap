@@ -299,8 +299,10 @@ static size_t elastio_strscpy(char *dst, const char *src, size_t sz)
 
 static size_t elastio_snap_blkdev_issue_flush(struct block_device *bdev)
 {
-#ifdef HAVE_BLKDEV_ISSUE_FLUSH_3
+#if defined HAVE_BLKDEV_ISSUE_FLUSH_3
 	return blkdev_issue_flush(bdev, GFP_KERNEL, NULL);
+#elif defined HAVE_BLKDEV_ISSUE_FLUSH_2
+	return blkdev_issue_flush(bdev, GFP_KERNEL);
 #else
 	return blkdev_issue_flush(bdev);
 #endif
