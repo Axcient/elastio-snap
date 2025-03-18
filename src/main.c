@@ -297,6 +297,15 @@ static size_t elastio_strscpy(char *dst, const char *src, size_t sz)
 #endif
 }
 
+static size_t elastio_snap_blkdev_issue_flush(struct block_device *bdev)
+{
+#ifdef HAVE_BLKDEV_ISSUE_FLUSH_3
+	return blkdev_issue_flush(bdev, GFP_KERNEL, NULL);
+#else
+	return blkdev_issue_flush(bdev);
+#endif
+}
+
 #ifndef HAVE_ALLOC_DISK
 static struct gendisk *elastio_snap_blk_alloc_disk(void)
 {
@@ -4724,7 +4733,13 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	if(origsb){
 		LOG_DEBUG("force syncing the disk '%s'", bdev_name);
 		sync_filesystem(origsb);
-		drop_super(origsb);
+		ret = elastio_snap_blkdev_issue_flush(bdev);
+		if (ret) {
+			LOG_ERROR(ret, "blkdev_issue_flush() failed");
+		}
+
+		invalidate_bdev(bdev);
+		LOG_DEBUG("bdev cache invalidated");
 
 		if (origsb->s_magic == EXT4_SUPER_MAGIC) {
 			LOG_DEBUG("Flushing ext4 metadata explicitly...");
@@ -4734,6 +4749,8 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 				LOG_DEBUG("Flush failed.");
 			}
 		}
+
+		drop_super(origsb);
 
 		//freeze and sync block device
 		LOG_DEBUG("freezing '%s'", bdev_name);
