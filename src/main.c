@@ -4724,7 +4724,11 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	if(origsb){
 		LOG_DEBUG("force syncing the disk '%s'", bdev_name);
 		sync_filesystem(origsb);
-		drop_super(origsb);
+		invalidate_bdev(bdev);
+		ret = blkdev_issue_flush(bdev);
+		if (ret) {
+			LOG_ERROR(ret, "blkdev_issue_flush() failed");
+		}
 
 		if (origsb->s_magic == EXT4_SUPER_MAGIC) {
 			LOG_DEBUG("Flushing ext4 metadata explicitly...");
@@ -4734,6 +4738,8 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 				LOG_DEBUG("Flush failed.");
 			}
 		}
+
+		drop_super(origsb);
 
 		//freeze and sync block device
 		LOG_DEBUG("freezing '%s'", bdev_name);
