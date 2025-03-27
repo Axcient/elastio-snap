@@ -114,7 +114,7 @@
 
 
 Name:            elastio-snap
-Version:         0.12.6
+Version:         0.12.7
 Release:         %{_release}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -649,6 +649,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Mar 27 2025 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.7
+ - [RA-6120] Verify new assumptions on the data integrity issues (#99)
+ - [RA-4567] Affected files are found on Ubuntu (#96)
+ - [RA-5839] Module elastio-snap not found after agent install (#94)
+ - [RA-5749] Limit amount of mandatory tests for elastio-snap (#91)
+ - [RA-5092] Improve Linux testing pipeline (#89)
+ - [RA-5629] updated the spec (#87)
+
 * Thu Sep 19 2024 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.6
 
 * Thu May 30 2024 Anatoly Zharkov <azharkov@axcient.com> - 0.12.5
