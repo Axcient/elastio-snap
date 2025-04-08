@@ -4031,6 +4031,7 @@ static int snap_cow_thread(void *data){
 			elastio_snap_bio_endio(bio, (ret)? wrap_err_io(dev) : 0);
 		}else{
 			if(is_failed){
+				atomic64_inc(&dev->sd_processed_cnt);
 				bio_free_clone(bio);
 				continue;
 			}
