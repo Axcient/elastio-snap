@@ -13,6 +13,8 @@
 #include "nl_debug.h"
 #endif
 
+static int elastio_snap_get_file_extents(struct fiemap_extent **file_extents, unsigned int *file_ext_cnt, struct file *filp);
+
 //current lowest supported kernel = 3.10.0
 
 //basic information
@@ -999,17 +1001,21 @@ static void bio_free_pages(struct bio *bio){
 
 //global module parameters
 static int elastio_snap_may_hook_syscalls = 0;
-static unsigned long elastio_snap_cow_ext_buf_size = sizeof(struct fiemap_extent) * 1024;
+static unsigned long elastio_snap_file_ext_buf_size = sizeof(struct fiemap_extent) * 4096;
 static unsigned long elastio_snap_cow_max_memory_default = (300 * 1024 * 1024);
 static unsigned int elastio_snap_cow_fallocate_percentage_default = 10;
 static unsigned int elastio_snap_max_snap_devices = ELASTIO_SNAP_DEFAULT_SNAP_DEVICES;
 static int elastio_snap_debug = 0;
 
+static unsigned long track_inode = 0;
+module_param(track_inode, ulong, 0644);
+MODULE_PARM_DESC(track_inode, "Inode number to track bio operations for");
+
 module_param_named(may_hook_syscalls, elastio_snap_may_hook_syscalls, int, S_IRUGO);
 MODULE_PARM_DESC(may_hook_syscalls, "if true, allows the kernel module to find and alter the system call table to allow tracing to work across remounts");
 
-module_param_named(cow_ext_buf_size, elastio_snap_cow_ext_buf_size, ulong, 0);
-MODULE_PARM_DESC(cow_ext_buf_size, "length of the cow file extension buffer (in bytes)");
+module_param_named(ext_buf_size, elastio_snap_file_ext_buf_size, ulong, 0);
+MODULE_PARM_DESC(ext_buf_size, "length of the file extension buffer (in bytes)");
 
 module_param_named(cow_max_memory_default, elastio_snap_cow_max_memory_default, ulong, 0);
 MODULE_PARM_DESC(cow_max_memory_default, "default maximum cache size (in bytes)");
@@ -1142,7 +1148,10 @@ struct snap_device{
 	char *sd_cow_path; //cow file path
 	struct inode *sd_cow_inode; //cow file inode
 	struct fiemap_extent *sd_cow_extents; //cow file extents
+	struct fiemap_extent *sd_file_extents; //test file extents
+	struct file *filp;
 	unsigned int sd_cow_ext_cnt; //cow file extents count
+	unsigned int sd_file_ext_cnt; //test file extents count
 #ifdef USE_BDOPS_SUBMIT_BIO
 	struct block_device_operations *sd_orig_ops; //block device's original operations sructure with the submit bio function
 	struct tracing_ops *sd_tracing_ops; //block device's operations sructure, copy of the original one,
@@ -2755,7 +2764,7 @@ static unsigned long elastio_snap_get_unmapped_area(struct file *file, unsigned 
 #endif
 }
 
-static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct file *filp)
+static int elastio_snap_get_file_extents(struct fiemap_extent **file_extents, unsigned int *file_ext_cnt, struct file *filp)
 {
 	int ret;
 	struct fiemap_extent_info fiemap_info;
@@ -2767,10 +2776,10 @@ static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct fil
 	struct task_struct *task;
 	struct vm_area_struct *vma;
 	struct page *pg;
-	__user uint8_t *cow_ext_buf;
+	__user uint8_t *file_ext_buf;
 
 	// we save it to fix its value till the end of the function
-	unsigned long cow_ext_buf_size = ALIGN(elastio_snap_cow_ext_buf_size, PAGE_SIZE);
+	unsigned long file_ext_buf_size = ALIGN(elastio_snap_file_ext_buf_size, PAGE_SIZE);
 
 	int (*fiemap)(struct inode *, struct fiemap_extent_info *, u64 start, u64 len);
 
@@ -2785,12 +2794,12 @@ static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct fil
 	fiemap = NULL;
 	task = get_current();
 
-	LOG_DEBUG("getting cow file extents from filp=%p", filp);
+	LOG_DEBUG("getting file extents from filp=%p", filp);
 	LOG_DEBUG("attempting page stealing from %s", get_task_comm(parent_process_name, task));
 
 	elastio_snap_mm_lock(task->mm);
 
-	start_addr = elastio_snap_get_unmapped_area(NULL, 0, cow_ext_buf_size, 0, VM_READ | VM_WRITE);
+	start_addr = elastio_snap_get_unmapped_area(NULL, 0, file_ext_buf_size, 0, VM_READ | VM_WRITE);
 	if (IS_ERR_VALUE(start_addr))
 		return start_addr; // returns -EPERM if failed
 
@@ -2805,7 +2814,7 @@ static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct fil
 	}
 
 	vma->vm_start = start_addr;
-	vma->vm_end = start_addr + cow_ext_buf_size;
+	vma->vm_end = start_addr + file_ext_buf_size;
 	*(unsigned long *) &vma->vm_flags = vm_flags;
 	vma->vm_page_prot = vm_get_page_prot(vm_flags);
 	vma->vm_pgoff = 0;
@@ -2819,7 +2828,7 @@ static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct fil
 		return ret;
 	}
 
-	pg = alloc_pages(GFP_USER, get_order(cow_ext_buf_size));
+	pg = alloc_pages(GFP_USER, get_order(file_ext_buf_size));
 	if (!pg) {
 		ret = -ENOMEM;
 		LOG_ERROR(ret, "alloc_page() failed");
@@ -2829,48 +2838,48 @@ static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct fil
 	}
 
 	SetPageReserved(pg);
-	ret = remap_pfn_range(vma, vma->vm_start, page_to_pfn(pg), cow_ext_buf_size, PAGE_SHARED);
+	ret = remap_pfn_range(vma, vma->vm_start, page_to_pfn(pg), file_ext_buf_size, PAGE_SHARED);
 	if (ret < 0) {
 		LOG_ERROR(ret, "remap_pfn_range() failed");
 		ClearPageReserved(pg);
-		__free_pages(pg, get_order(cow_ext_buf_size));
+		__free_pages(pg, get_order(file_ext_buf_size));
 		elastio_snap_vm_area_free(vma);
 		elastio_snap_mm_unlock(task->mm);
 		return ret;
 	}
 
-	cow_ext_buf = (__user uint8_t *) start_addr;
+	file_ext_buf = (__user uint8_t *) start_addr;
 
 	if (filp->f_inode->i_op)
 		fiemap = filp->f_inode->i_op->fiemap;
 
 	if (fiemap) {
 		int64_t fiemap_max = ~0ULL & ~(1ULL << 63);
-		int max_num_extents = cow_ext_buf_size; // used for do_div() as it overwrites the first argument
+		int max_num_extents = file_ext_buf_size; // used for do_div() as it overwrites the first argument
 
 		fiemap_info.fi_flags = FIEMAP_FLAG_SYNC;
 		fiemap_info.fi_extents_mapped = 0;
 		do_div(max_num_extents, sizeof(struct fiemap_extent));
 		fiemap_info.fi_extents_max = max_num_extents;
-		fiemap_info.fi_extents_start = (struct fiemap_extent __user *)cow_ext_buf;
+		fiemap_info.fi_extents_start = (struct fiemap_extent __user *)file_ext_buf;
 
 		ret = fiemap(filp->f_inode, &fiemap_info, 0, fiemap_max);
 
-		LOG_DEBUG("fiemap for cow file (ret %d), extents %u (max %u)", ret,
+		LOG_DEBUG("fiemap for the file (ret %d), extents %u (max %u)", ret,
 				fiemap_info.fi_extents_mapped, fiemap_info.fi_extents_max);
 
 		if (!ret && fiemap_info.fi_extents_mapped > 0) {
-			if (dev->sd_cow_extents) kfree(dev->sd_cow_extents);
+			if (*file_extents) kfree(*file_extents);
 			fiemap_mapped_extents_size = fiemap_info.fi_extents_mapped * sizeof(struct fiemap_extent);
-			dev->sd_cow_extents = kmalloc(fiemap_mapped_extents_size, GFP_KERNEL);
-			if (dev->sd_cow_extents) {
-				ret = copy_from_user(dev->sd_cow_extents, cow_ext_buf, fiemap_mapped_extents_size);
+			*file_extents = kmalloc(fiemap_mapped_extents_size, GFP_KERNEL);
+			if (*file_extents) {
+				ret = copy_from_user(*file_extents, file_ext_buf, fiemap_mapped_extents_size);
 				if (!ret) {
-					dev->sd_cow_ext_cnt = fiemap_info.fi_extents_mapped;
-					WARN(dev->sd_cow_ext_cnt == max_num_extents, "max num of extents read, increase cow_ext_buf_size");
-					extent = dev->sd_cow_extents;
+					*file_ext_cnt = fiemap_info.fi_extents_mapped;
+					WARN(*file_ext_cnt == max_num_extents, "max num of extents read, increase file_ext_buf_size");
+					extent = *file_extents;
 					for (i_ext = 0; i_ext < fiemap_info.fi_extents_mapped; ++i_ext, ++extent) {
-						LOG_DEBUG("   cow file extent: log 0x%llx, phy 0x%llx, len %llu", extent->fe_logical, extent->fe_physical, extent->fe_length);
+						LOG_DEBUG("   file extent: log 0x%llx, phy 0x%llx, len %llu", extent->fe_logical, extent->fe_physical, extent->fe_length);
 					}
 				}
 			}
@@ -2884,8 +2893,8 @@ static int elastio_snap_get_cow_file_extents(struct snap_device *dev, struct fil
 out:
 	ClearPageReserved(pg);
 	elastio_snap_mm_unlock(task->mm);
-	vm_munmap(vma->vm_start, cow_ext_buf_size);
-	__free_pages(pg, get_order(cow_ext_buf_size));
+	vm_munmap(vma->vm_start, file_ext_buf_size);
+	__free_pages(pg, get_order(file_ext_buf_size));
 	return ret;
 }
 
@@ -2898,7 +2907,7 @@ static int cow_sync_and_close(struct cow_manager *cm){
 	ret = __cow_close_header(cm);
 	if(ret) goto error;
 
-	ret = elastio_snap_get_cow_file_extents(cm->dev, cm->filp);
+	ret = elastio_snap_get_file_extents(&cm->dev->sd_cow_extents, &cm->dev->sd_cow_ext_cnt, cm->filp);
 	if(ret) goto error;
 
 	if(cm->filp) file_close(cm->filp);
@@ -5532,6 +5541,12 @@ static void tracer_destroy(struct snap_device *dev){
 	__tracer_destroy_cow_path(dev);
 	__tracer_destroy_cow_free(dev);
 	__tracer_destroy_base_dev(dev);
+	if (dev->sd_file_extents) {
+		kfree(dev->sd_file_extents);
+		dev->sd_file_extents = NULL;
+		dev->sd_file_ext_cnt = 0;
+		LOG_DEBUG("Extents freed!");
+	}
 }
 
 static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor, const char *bdev_path, const char *cow_path, unsigned long fallocated_space, unsigned long cache_size, bool ignore_snap_errors){
@@ -5546,6 +5561,14 @@ static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
 	clear_bit(UNVERIFIED, &dev->sd_state);
 
 	dev->sd_ignore_snap_errors = ignore_snap_errors;
+
+	ret = file_open("/tmp/test_file", 0, &dev->filp);
+	if(ret) goto error;
+
+	ret = elastio_snap_get_file_extents(&dev->sd_file_extents, &dev->sd_file_ext_cnt, dev->filp);
+	if(ret) goto error;
+
+	LOG_DEBUG("Extents read!");
 
 	//setup base device
 	ret = __tracer_setup_base_dev(dev, bdev_path);
