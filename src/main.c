@@ -13,8 +13,6 @@
 #include "nl_debug.h"
 #endif
 
-static int elastio_snap_get_file_extents(struct fiemap_extent **file_extents, unsigned int *file_ext_cnt, struct file *filp);
-
 //current lowest supported kernel = 3.10.0
 
 //basic information
@@ -1006,6 +1004,7 @@ static unsigned long elastio_snap_cow_max_memory_default = (300 * 1024 * 1024);
 static unsigned int elastio_snap_cow_fallocate_percentage_default = 10;
 static unsigned int elastio_snap_max_snap_devices = ELASTIO_SNAP_DEFAULT_SNAP_DEVICES;
 static int elastio_snap_debug = 0;
+static char *test_file_path = "/test_dir/test_file";
 
 static unsigned long track_inode = 0;
 module_param(track_inode, ulong, 0644);
@@ -1028,6 +1027,9 @@ MODULE_PARM_DESC(max_snap_devices, "maximum number of tracers available");
 
 module_param_named(debug, elastio_snap_debug, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "enables debug logging");
+
+module_param(test_file_path, charp, 0644);
+MODULE_PARM_DESC(test_file_path, "Test file path for the affected file test");
 
 static int param_set_bio_stats(const char *buffer, const struct kernel_param *kp);
 
@@ -1208,6 +1210,7 @@ static void *elastio_snap_proc_next(struct seq_file *m, void *v, loff_t *pos);
 static void elastio_snap_proc_stop(struct seq_file *m, void *v);
 static int elastio_snap_proc_open(struct inode *inode, struct file *filp);
 static int elastio_snap_proc_release(struct inode *inode, struct file *file);
+static int elastio_snap_get_file_extents(struct fiemap_extent **file_extents, unsigned int *file_ext_cnt, struct file *filp);
 
 #define WAIT_SUBMITTED_BIOS_MSEC 5000
 // wait msec value to be at least 100 msec as wait loop uses it by msleep of (100) timeout pieces
@@ -4281,6 +4284,23 @@ static int memory_is_too_low(struct snap_device *dev) {
 	return ret;
 }
 
+static int bio_affects_file(unsigned int start_sect, unsigned int sect_count, struct snap_device *dev)
+{
+	unsigned int i, j;
+	struct fiemap_extent *extent = dev->sd_file_extents;
+
+	for (i = 0; i < dev->sd_file_ext_cnt; i++) {
+		for (j = start_sect; j < start_sect + sect_count; j++) {
+			if (j > extent[i].fe_physical && j < extent[i].fe_physical + extent[i].fe_length) {
+				LOG_DEBUG("sect: %d, physical: %lld-%lld", j, extent[i].fe_physical, extent[i].fe_physical + extent[i].fe_length);
+				return 1;
+			}
+		}
+	}
+
+	return 0;
+}
+
 static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	int ret;
 	struct bio *new_bio = NULL;
@@ -4328,6 +4348,10 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
 	end_sect = ROUND_UP(bio_sector(bio) + (bio_size(bio) / SECTOR_SIZE) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
 	pages = (end_sect - start_sect) / SECTORS_PER_PAGE;
+
+	if (bio_affects_file(start_sect, end_sect - start_sect, dev)) {
+		LOG_DEBUG("bio affects the test file!");
+	}
 
 	//allocate tracing_params struct to hold all pointers we will need across contexts
 	ret = tp_alloc(dev, bio, &tp);
@@ -5541,6 +5565,12 @@ static void tracer_destroy(struct snap_device *dev){
 	__tracer_destroy_cow_path(dev);
 	__tracer_destroy_cow_free(dev);
 	__tracer_destroy_base_dev(dev);
+
+	if (dev->filp) {
+		file_close(dev->filp);
+		dev->filp = NULL;
+	}
+
 	if (dev->sd_file_extents) {
 		kfree(dev->sd_file_extents);
 		dev->sd_file_extents = NULL;
@@ -5562,11 +5592,12 @@ static int tracer_setup_active_snap(struct snap_device *dev, unsigned int minor,
 
 	dev->sd_ignore_snap_errors = ignore_snap_errors;
 
-	ret = file_open("/tmp/test_file", 0, &dev->filp);
-	if(ret) goto error;
-
-	ret = elastio_snap_get_file_extents(&dev->sd_file_extents, &dev->sd_file_ext_cnt, dev->filp);
-	if(ret) goto error;
+	LOG_DEBUG("Opening test file `%s'", test_file_path);
+	ret = file_open(test_file_path, 0, &dev->filp);
+	if(!ret) {
+		ret = elastio_snap_get_file_extents(&dev->sd_file_extents, &dev->sd_file_ext_cnt, dev->filp);
+		if(ret) goto error;
+	}
 
 	LOG_DEBUG("Extents read!");
 
