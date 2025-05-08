@@ -931,7 +931,7 @@ static void bio_free_pages(struct bio *bio){
 
 //should be called along with tracer_matches_bio to be valid. returns true if bio is a write, has a size,
 //tracing struct is in non-fail state, and the device's sector range matches the bio
-#define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) && !bio_is_discard(bio) && bio_size(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
+#define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) && bio_size(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
 
 //macros for snapshot bio modes of operation
 #define READ_MODE_COW_FILE 1
@@ -3582,6 +3582,7 @@ static int bio_needs_cow(struct bio *bio, struct snap_device *dev){
 	// HAVE_WRITE_ZEROES: KERNEL_VERSION >= 4.10
 	if(bio_op(bio) == REQ_OP_WRITE_ZEROES) return 1;
 #endif
+	if(bio_op(bio) == REQ_OP_DISCARD) return 1;
 
 	//check the inode of each page return true if it does not match our cow file
 	bio_for_each_segment(bvec, bio, iter){
