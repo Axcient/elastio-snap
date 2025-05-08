@@ -3582,7 +3582,7 @@ static int bio_needs_cow(struct bio *bio, struct snap_device *dev){
 	// HAVE_WRITE_ZEROES: KERNEL_VERSION >= 4.10
 	if(bio_op(bio) == REQ_OP_WRITE_ZEROES) return 1;
 #endif
-	if(bio_op(bio) == REQ_OP_DISCARD) return 1;
+	if(bio_is_discard(bio)) return 1;
 
 	//check the inode of each page return true if it does not match our cow file
 	bio_for_each_segment(bvec, bio, iter){
