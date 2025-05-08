@@ -931,7 +931,7 @@ static void bio_free_pages(struct bio *bio){
 
 //should be called along with tracer_matches_bio to be valid. returns true if bio is a write, has a size,
 //tracing struct is in non-fail state, and the device's sector range matches the bio
-#define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) && !bio_is_discard(bio) && bio_size(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
+#define tracer_should_trace_bio(dev, bio) (bio_data_dir(bio) && bio_size(bio) && !tracer_read_fail_state(dev) && tracer_sector_matches_bio(dev, bio))
 
 //macros for snapshot bio modes of operation
 #define READ_MODE_COW_FILE 1
@@ -1164,6 +1164,7 @@ struct snap_device{
 	atomic64_t sd_submitted_cnt; //count of read clones submitted to underlying driver
 	atomic64_t sd_received_cnt; //count of read clones submitted to underlying driver
 	atomic64_t sd_processed_cnt; //count of read clones processed in snap_cow_thread()
+	atomic64_t sd_discard_cnt; //count of discard bio requests
 };
 
 static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
@@ -3581,6 +3582,7 @@ static int bio_needs_cow(struct bio *bio, struct snap_device *dev){
 	// HAVE_WRITE_ZEROES: KERNEL_VERSION >= 4.10
 	if(bio_op(bio) == REQ_OP_WRITE_ZEROES) return 1;
 #endif
+	if(bio_is_discard(bio)) return 1;
 
 	//check the inode of each page return true if it does not match our cow file
 	bio_for_each_segment(bvec, bio, iter){
@@ -4489,6 +4491,11 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 			goto call_orig;
 		}
 
+		if (bio_is_discard(bio)) {
+			PRINT_BIO("bio_op_discard", bio);
+			atomic64_inc(&dev->sd_discard_cnt);
+		}
+
 		if(tracer_should_trace_bio(dev, bio)){
 			if(test_bit(SNAPSHOT, &dev->sd_state)) {
 #ifdef NETLINK_DEBUG
@@ -5332,6 +5339,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	atomic64_set(&dev->sd_submitted_cnt, 0);
 	atomic64_set(&dev->sd_received_cnt, 0);
 	atomic64_set(&dev->sd_processed_cnt, 0);
+	atomic64_set(&dev->sd_discard_cnt, 0);
 
 	return 0;
 
@@ -7051,6 +7059,7 @@ static int elastio_snap_proc_show(struct seq_file *m, void *v){
 
 		seq_printf(m, "\t\t\t\"state\": %lu,\n", dev->sd_state);
 		seq_printf(m, "\t\t\t\"ignore_errors\": %i,\n", dev->sd_ignore_snap_errors);
+		seq_printf(m, "\t\t\t\"bio_op_discard\": %llu,\n", atomic64_read(&dev->sd_discard_cnt));
 		seq_printf(m, "\t\t\t\"cow_on_bdev\": %s\n", test_bit(COW_ON_BDEV, &dev->sd_cow_state) ? "true" : "false");
 		seq_printf(m, "\t\t}");
 	}
