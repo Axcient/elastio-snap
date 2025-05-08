@@ -142,9 +142,6 @@ void path_put(const struct path *path) {
 typedef mode_t fmode_t;
 #endif
 
-int (*__elastio_snap_ext4_force_commit)(struct super_block *) = (EXT4_FORCE_COMMIT_ADDR != 0) ?
-	(int (*)(struct super_block *)) (EXT4_FORCE_COMMIT_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
-
 #ifndef HAVE_BLK_ALLOC_QUEUE_MK_REQ_FN_NODE_ID
 struct request_queue* (*elastio_blk_alloc_queue)(int node_id) = (BLK_ALLOC_QUEUE_ADDR != 0) ?
 	(struct request_queue* (*)(int node_id)) (BLK_ALLOC_QUEUE_ADDR + (long long)(((void *)kfree) - (void *)KFREE_ADDR)) : NULL;
@@ -163,11 +160,6 @@ static struct super_block *elastio_snap_get_super(struct block_device *bdev)
 #else
 	return __elastio_snap_user_get_super(bdev->bd_dev, false);
 #endif
-}
-
-static int elastio_snap_ext4_force_commit(struct super_block *sb)
-{
-	return __elastio_snap_ext4_force_commit ? __elastio_snap_ext4_force_commit(sb) : 1;
 }
 
 #if !(defined HAVE_BLKDEV_GET_BY_PATH || defined HAVE_BLKDEV_GET_BY_PATH_4 || \
@@ -294,17 +286,6 @@ static size_t elastio_strscpy(char *dst, const char *src, size_t sz)
 	return strscpy(dst, src, sz);
 #else
 	return strlcpy(dst, src, sz);
-#endif
-}
-
-static size_t elastio_snap_blkdev_issue_flush(struct block_device *bdev)
-{
-#if defined HAVE_BLKDEV_ISSUE_FLUSH_3
-	return blkdev_issue_flush(bdev, GFP_KERNEL, NULL);
-#elif defined HAVE_BLKDEV_ISSUE_FLUSH_2
-	return blkdev_issue_flush(bdev, GFP_KERNEL);
-#else
-	return blkdev_issue_flush(bdev);
 #endif
 }
 
@@ -520,9 +501,6 @@ static void elastio_snap_bio_endio(struct bio *bio, int err){
 	#define bio_idx(bio) (bio)->bi_iter.bi_idx
 #endif
 
-#ifndef EXT4_SUPER_MAGIC
-#define EXT4_SUPER_MAGIC 0xEF53
-#endif
 
 #ifndef HAVE_MNT_WANT_WRITE
 #define mnt_want_write(x) 0
@@ -4743,23 +4721,6 @@ static int __tracer_transition_tracing(struct snap_device *dev, struct block_dev
 	if(origsb){
 		LOG_DEBUG("force syncing the disk '%s'", bdev_name);
 		sync_filesystem(origsb);
-		ret = elastio_snap_blkdev_issue_flush(bdev);
-		if (ret) {
-			LOG_ERROR(ret, "blkdev_issue_flush() failed");
-		}
-
-		invalidate_bdev(bdev);
-		LOG_DEBUG("bdev cache invalidated");
-
-		if (origsb->s_magic == EXT4_SUPER_MAGIC) {
-			LOG_DEBUG("Flushing ext4 metadata explicitly...");
-			if (elastio_snap_ext4_force_commit(origsb) == 0) {
-				LOG_DEBUG("Ext4 metadata flushed!");
-			} else {
-				LOG_DEBUG("Flush failed.");
-			}
-		}
-
 		drop_super(origsb);
 
 		//freeze and sync block device
