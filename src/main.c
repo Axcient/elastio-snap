@@ -4284,15 +4284,16 @@ static int memory_is_too_low(struct snap_device *dev) {
 	return ret;
 }
 
-static int bio_affects_file(unsigned int start_sect, unsigned int sect_count, struct snap_device *dev)
+static int bio_affects_file(uint64_t start_sect, unsigned int sect_count, struct snap_device *dev)
 {
-	unsigned int i, j;
+	uint64_t i, j;
 	struct fiemap_extent *extent = dev->sd_file_extents;
 
 	for (i = 0; i < dev->sd_file_ext_cnt; i++) {
-		for (j = start_sect; j < start_sect + sect_count; j++) {
-			if (j > extent[i].fe_physical && j < extent[i].fe_physical + extent[i].fe_length) {
-				LOG_DEBUG("sect: %d, physical: %lld-%lld", j, extent[i].fe_physical, extent[i].fe_physical + extent[i].fe_length);
+		for (j = start_sect * 512; j < (start_sect + sect_count) * 512; j+= 512) {
+			LOG_DEBUG("[Phys: %lld] [Check %lld]", extent[i].fe_physical, j);
+			if (j >= extent[i].fe_physical && j < extent[i].fe_physical + extent[i].fe_length) {
+				LOG_DEBUG("AFFECTED -> offset: %lld, physical: %lld-%lld", j, extent[i].fe_physical, extent[i].fe_physical + extent[i].fe_length);
 				return 1;
 			}
 		}
@@ -4344,12 +4345,13 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	dev->sd_bio_stats_traced[bio_op(bio)]++;
 #endif
 
+	LOG_DEBUG("tracing sector=%lld (offset %lld bytes), sd_sect_offset = %lld", bio_sector(bio), bio_sector(bio) * 512, dev->sd_sect_off);
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
 	start_sect = ROUND_DOWN(bio_sector(bio) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
 	end_sect = ROUND_UP(bio_sector(bio) + (bio_size(bio) / SECTOR_SIZE) - dev->sd_sect_off, SECTORS_PER_BLOCK) + dev->sd_sect_off;
 	pages = (end_sect - start_sect) / SECTORS_PER_PAGE;
 
-	if (bio_affects_file(start_sect, end_sect - start_sect, dev)) {
+	if (bio_affects_file(bio_sector(bio), bio_size(bio) / SECTOR_SIZE, dev)) {
 		LOG_DEBUG("bio affects the test file!");
 	}
 
