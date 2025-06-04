@@ -1068,7 +1068,8 @@ struct tracing_ops {
 #ifdef REQ_OP_LAST
 #define BIO_STATS_MAX_ELEMENTS REQ_OP_LAST
 #else
-#define BIO_STATS_MAX_ELEMENTS 64
+// NOTE: HT: last 8 bits are used for operation, different distros have different implementations for it
+#define BIO_STATS_MAX_ELEMENTS 256
 #endif
 
 struct cow_section{
