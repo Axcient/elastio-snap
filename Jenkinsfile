@@ -150,7 +150,7 @@ def updateKernelWithReboot()
 	vSphere buildStep: [$class: 'PowerOn', vm: env.NODE_NAME, timeoutInSeconds: 600], serverName: 'vSphere SLC'
 
 	Jenkins.instance.getNode(env.NODE_NAME).getComputer().connect(true)
-	sleep(time:30,unit:"SECONDS")
+	sleep(time:60,unit:"SECONDS")
 }
 
 def runTests(def supported_fs, String args)
