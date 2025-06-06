@@ -1068,7 +1068,8 @@ struct tracing_ops {
 #ifdef REQ_OP_LAST
 #define BIO_STATS_MAX_ELEMENTS REQ_OP_LAST
 #else
-#define BIO_STATS_MAX_ELEMENTS 64
+// NOTE: HT: last 8 bits are used for operation, different distros have different implementations for it
+#define BIO_STATS_MAX_ELEMENTS 256
 #endif
 
 struct cow_section{
@@ -4259,6 +4260,9 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	sector_t start_sect, end_sect;
 	unsigned int bytes, pages;
 	int max_sectors;
+#if defined HAVE_ENUM_REQ_OPF || defined HAVE_ENUM_REQ_OP
+	unsigned int bio_op_idx = 0;
+#endif
 
 	//if we don't need to cow this bio or if the snapshot is in the failed state,
 	//e.g. physical memory usage has exceeded threshold or COW file state is failed,
@@ -4292,7 +4296,10 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 	}
 
 #if defined HAVE_ENUM_REQ_OPF || defined HAVE_ENUM_REQ_OP
-	dev->sd_bio_stats_traced[bio_op(bio)]++;
+	bio_op_idx = bio_op(bio);
+	if (likely(bio_op_idx < BIO_STATS_MAX_ELEMENTS)) {
+		dev->sd_bio_stats_traced[bio_op_idx]++;
+	}
 #endif
 
 	//the cow manager works in 4096 byte blocks, so read clones must also be 4096 byte aligned
@@ -4381,9 +4388,15 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio){
 	sector_t start_sect = 0, end_sect = bio_sector(bio);
 	bio_iter_t iter;
 	bio_iter_bvec_t bvec;
+#if defined HAVE_ENUM_REQ_OPF || defined HAVE_ENUM_REQ_OP
+	unsigned int bio_op_idx = 0;
+#endif
 
 #if defined HAVE_ENUM_REQ_OPF || defined HAVE_ENUM_REQ_OP
-	dev->sd_bio_stats_traced[bio_op(bio)]++;
+	bio_op_idx = bio_op(bio);
+	if (likely(bio_op_idx < BIO_STATS_MAX_ELEMENTS)) {
+		dev->sd_bio_stats_traced[bio_op_idx]++;
+	}
 #endif
 
 	if (!test_bit(COW_ON_BDEV, &dev->sd_cow_state)){
@@ -4450,6 +4463,9 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 	int i, ret = 0;
 	struct snap_device *dev;
 	make_request_fn *orig_mrf = NULL;
+#if defined HAVE_ENUM_REQ_OPF || defined HAVE_ENUM_REQ_OP
+	unsigned int bio_op_idx = 0;
+#endif
 
 	MAYBE_UNUSED(ret);
 	smp_rmb();
@@ -4457,7 +4473,10 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 		if(!dev || test_bit(UNVERIFIED, &dev->sd_state)) continue;
 
 #if defined HAVE_ENUM_REQ_OPF || defined HAVE_ENUM_REQ_OP
-		dev->sd_bio_stats_total[bio_op(bio)]++;
+		bio_op_idx = bio_op(bio);
+		if (likely(bio_op_idx < BIO_STATS_MAX_ELEMENTS)) {
+			dev->sd_bio_stats_total[bio_op_idx]++;
+		}
 #endif
 
 		if (!tracer_matches_bio(dev, bio)) continue;
