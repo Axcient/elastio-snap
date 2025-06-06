@@ -1142,8 +1142,8 @@ struct snap_device{
 	atomic64_t sd_submitted_cnt; //count of read clones submitted to underlying driver
 	atomic64_t sd_received_cnt; //count of read clones submitted to underlying driver
 	atomic64_t sd_processed_cnt; //count of read clones processed in snap_cow_thread()
-	atomic64_t sd_discard_cnt; //count of discard bio requests
-	atomic64_t sd_discard_size; //total size of discarded sectors
+	atomic64_t sd_discard_dropped_cnt; //count of dropped discard bio requests
+	atomic64_t sd_discard_ignored_size; //total size of ignored discard sectors
 };
 
 static long ctrl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
@@ -3561,7 +3561,6 @@ static int bio_needs_cow(struct bio *bio, struct snap_device *dev){
 	// HAVE_WRITE_ZEROES: KERNEL_VERSION >= 4.10
 	if(bio_op(bio) == REQ_OP_WRITE_ZEROES) return 1;
 #endif
-	if(bio_is_discard(bio)) return 1;
 
 	//check the inode of each page return true if it does not match our cow file
 	bio_for_each_segment(bvec, bio, iter){
@@ -4404,6 +4403,8 @@ static int inc_trace_bio(struct snap_device *dev, struct bio *bio){
 	}
 #endif
 
+	if (bio_is_discard(bio)) goto out;
+
 	bio_for_each_segment(bvec, bio, iter){
 		if(page_get_inode(bio_iter_page(bio, iter)) != dev->sd_cow_inode){
 			if(!is_initialized){
@@ -4470,16 +4471,22 @@ static MRF_RETURN_TYPE tracing_mrf(struct request_queue *q, struct bio *bio){
 			goto call_orig;
 		}
 
-		if (bio_is_discard(bio)) {
-			atomic64_inc(&dev->sd_discard_cnt);
-			atomic64_add(bio_size(bio) / 512, &dev->sd_discard_size);
-		}
-
 		if(tracer_should_trace_bio(dev, bio)){
 			if(test_bit(SNAPSHOT, &dev->sd_state)) {
 #ifdef NETLINK_DEBUG
 				nl_trace_event_bio(NL_EVENT_BIO_SNAP, bio, 0);
 #endif
+				/*
+				 * Drop in the snapshot mode and
+				 * ignore in the incremental mode
+				 */
+				if (bio_is_discard(bio)) {
+					atomic64_inc(&dev->sd_discard_dropped_cnt);
+					atomic64_add(bio_size(bio) / 512, &dev->sd_discard_ignored_size);
+					elastio_snap_bio_endio(bio, -EBUSY);
+					goto out;
+				}
+
 				ret = snap_trace_bio(dev, bio);
 			}
 			else {
@@ -5301,8 +5308,8 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	atomic64_set(&dev->sd_submitted_cnt, 0);
 	atomic64_set(&dev->sd_received_cnt, 0);
 	atomic64_set(&dev->sd_processed_cnt, 0);
-	atomic64_set(&dev->sd_discard_cnt, 0);
-	atomic64_set(&dev->sd_discard_size, 0);
+	atomic64_set(&dev->sd_discard_dropped_cnt, 0);
+	atomic64_set(&dev->sd_discard_ignored_size, 0);
 
 	return 0;
 
@@ -7022,8 +7029,8 @@ static int elastio_snap_proc_show(struct seq_file *m, void *v){
 
 		seq_printf(m, "\t\t\t\"state\": %lu,\n", dev->sd_state);
 		seq_printf(m, "\t\t\t\"ignore_errors\": %i,\n", dev->sd_ignore_snap_errors);
-		seq_printf(m, "\t\t\t\"bio_op_discard\": %llu,\n", atomic64_read(&dev->sd_discard_cnt));
-		seq_printf(m, "\t\t\t\"sectors_discarded\": %llu,\n", atomic64_read(&dev->sd_discard_size));
+		seq_printf(m, "\t\t\t\"bio_op_discard_ignored\": %llu,\n", atomic64_read(&dev->sd_discard_dropped_cnt));
+		seq_printf(m, "\t\t\t\"discard_sectors_ignored\": %llu,\n", atomic64_read(&dev->sd_discard_ignored_size));
 		seq_printf(m, "\t\t\t\"cow_on_bdev\": %s\n", test_bit(COW_ON_BDEV, &dev->sd_cow_state) ? "true" : "false");
 		seq_printf(m, "\t\t}");
 	}
