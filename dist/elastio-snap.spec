@@ -114,7 +114,7 @@
 
 
 Name:            elastio-snap
-Version:         0.12.7
+Version:         0.12.8
 Release:         %{_release}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -649,6 +649,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jun 24 2025 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.8
+ - [RA-6158] VM becomes unavailable if the driver has an error on transition-to-incremental stage (#101)
+ - [RA-6218] Additional debug considerations (#104)
+ - [RA-6301] BIO_OP_DISCARD consumes space in the COW file (#105)
+ - [RA-6331] Fixed redhat specific kernel bio req ops (#107)
+ - [RA-6251] Upgrade Fedora to v42 (#111)
+
 * Thu Mar 27 2025 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.7
  - [RA-6120] Verify new assumptions on the data integrity issues (#99)
  - [RA-4567] Affected files are found on Ubuntu (#96)
