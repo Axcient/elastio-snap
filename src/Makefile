@@ -25,6 +25,8 @@ ifeq ($(NETLINK_DEBUG),y)
 EXTRA_CFLAGS += -DNETLINK_DEBUG
 endif
 
+ccflags-y += $(EXTRA_CFLAGS)
+
 FEATURE_TEST_BUILD_DIR := configure-tests/feature-tests/build
 
 default:
