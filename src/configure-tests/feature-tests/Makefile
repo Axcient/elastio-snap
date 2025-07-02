@@ -13,6 +13,8 @@ BUILDDIR ?= $(PWD)/build/$(OBJ)
 BUILDDIR_MAKEFILE ?= $(PWD)/build/$(OBJ)/Makefile
 BUILDDIR_SOURCE ?= $(PWD)/build/$(OBJ)/$(SRC)
 
+ccflags-y += $(EXTRA_CFLAGS)
+
 default: $(BUILDDIR_MAKEFILE)
 	$(MAKE) -C $(KDIR) M=$(BUILDDIR) src=$(PWD) modules
 
