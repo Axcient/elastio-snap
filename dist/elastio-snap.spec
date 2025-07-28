@@ -114,7 +114,7 @@
 
 
 Name:            elastio-snap
-Version:         0.12.8
+Version:         0.12.9
 Release:         %{_release}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -649,6 +649,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jul 17 2025 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.9
+ - [RA-6417] Implement driver support for the Linux kernel v6.15
+
 * Tue Jun 24 2025 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.8
  - [RA-6158] VM becomes unavailable if the driver has an error on transition-to-incremental stage (#101)
  - [RA-6218] Additional debug considerations (#104)
