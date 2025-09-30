@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /*
- * Copyright (C) 2024 Axcient Software Inc.
+ * Copyright (C) 2025 Axcient Software Inc.
  */
 
-// kernel_version < 6.6
+// kernel_version >= 6.16
 
 #include "includes.h"
 MODULE_LICENSE("GPL");
