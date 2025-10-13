@@ -62,7 +62,7 @@ pipeline
 							'amazon2', 'amazon2023',
 							'centos7', 'centos8', 'centos9',
 							'alma8', 'alma9',
-							'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', 'fedora38', 'fedora42',
+							'fedora31', 'fedora32', 'fedora34', 'fedora35', 'fedora36', 'fedora37', 'fedora38', 'fedora43',
 							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
 							'rhel7', 'rhel8', 'rhel9'
 					}
@@ -74,7 +74,7 @@ pipeline
 				{
 					stage('Update kernel')
 					{
-						when { expression { env.DISTRO == 'fedora42' } }
+						when { expression { env.DISTRO == 'fedora43' } }
 						steps
 						{
 							updateKernelWithReboot()
@@ -151,12 +151,12 @@ pipeline
 def updateKernelWithReboot()
 {
 	sh '[ -f /etc/debian_version ] && (sudo apt update; sudo apt upgrade -y) || sudo yum upgrade -y'
+	sh 'sync && sleep 1'
 
 	vSphere buildStep: [$class: 'PowerOff', vm: env.NODE_NAME], serverName: 'vSphere SLC'
 	vSphere buildStep: [$class: 'PowerOn', vm: env.NODE_NAME, timeoutInSeconds: 600], serverName: 'vSphere SLC'
-
 	Jenkins.instance.getNode(env.NODE_NAME).getComputer().connect(true)
-	sleep(time:30,unit:"SECONDS")
+	sleep(time:30, unit:"SECONDS")
 }
 
 def runTests(def supported_fs, String args)
