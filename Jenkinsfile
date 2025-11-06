@@ -21,6 +21,7 @@ def map_deb_distro = [
 	"debian10" : "buster-agent",
 	"debian11" : "bullseye-agent",
 	"debian12" : "bookworm-agent",
+	"debian13" : "trixie-agent",
 ]
 
 def test_disks = [:]
@@ -58,7 +59,7 @@ pipeline
 					axis
 					{
 						name 'DISTRO'
-						values  'debian8', 'debian9', 'debian10', 'debian11', 'debian12',
+						values  'debian8', 'debian9', 'debian10', 'debian11', 'debian12', 'debian13',
 							'amazon2', 'amazon2023',
 							'centos7', 'centos8', 'centos9',
 							'alma8', 'alma9',
