@@ -354,7 +354,9 @@ sed -e "s:@prefix@:%{_prefix}:g" \
 # Generate symbols for library package (Debian/Ubuntu only)
 %if "%{_vendor}" == "debbuild"
 mkdir -p %{buildroot}/%{libname}/DEBIAN
-dpkg-gensymbols -P%{buildroot} -p%{libname} -v%{version}-%{release} -e%{buildroot}%{_libdir}/%{libprefix}.so.%{?!libsover:0}%{?libsover} -e%{buildroot}%{_libdir}/%{libprefix}.so.%{?!libsover:0}%{?libsover}.* -O%{buildroot}/%{libname}/DEBIAN/symbols
+# dpkg-gensymbols will fail on v1.22.x if there is no baseline (expected on Ubuntu 24.04+)
+# The symbols will be generated anyway, so we continue
+dpkg-gensymbols -P%{buildroot} -p%{libname} -v%{version}-%{release} -I -e%{buildroot}%{_libdir}/libelastio-snap.so.1* -O%{buildroot}/%{libname}/DEBIAN/symbols || true
 %endif
 
 # Install utilities and man pages
