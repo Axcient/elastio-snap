@@ -58,10 +58,11 @@ pipeline
 					axis
 					{
 						name 'DISTRO'
-						values  'debian10', 'debian11', 'debian12',
-							'alma8', 'alma9',
-							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
-							'rhel7', 'rhel8', 'rhel9'
+						values  'debian10', 'debian11', 'debian12', 'debian13',
+								'alma8', 'alma9',
+								'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
+								'rhel7', 'rhel8', 'rhel9',
+								'fedora43'
 					}
 				}
 				agent {
@@ -145,15 +146,26 @@ pipeline
 	}
 }
 
-def updateKernelWithReboot()
-{
+def updateKernelWithReboot() {
+	def agentToReboot = env.NODE_NAME
 	sh '[ -f /etc/debian_version ] && (sudo apt update; sudo apt upgrade -y) || sudo yum upgrade -y'
-	sh 'sync && sleep 1'
+	sh 'sync; sleep 5'
 
-	vSphere buildStep: [$class: 'PowerOff', vm: env.NODE_NAME], serverName: 'vSphere SLC'
-	vSphere buildStep: [$class: 'PowerOn', vm: env.NODE_NAME, timeoutInSeconds: 600], serverName: 'vSphere SLC'
-	Jenkins.instance.getNode(env.NODE_NAME).getComputer().connect(true)
-	sleep(time:30, unit:"SECONDS")
+	node('master') {
+		def computer = Jenkins.instance.getNode(agentToReboot)?.computer
+		if (!computer) {
+			error "Node ${agentToReboot} not found in Jenkins!"
+		}
+
+		computer.disconnect()
+
+		vSphere buildStep: [$class: 'PowerOff', vm: agentToReboot], serverName: 'vSphere SLC'
+		vSphere buildStep: [$class: 'PowerOn', vm: agentToReboot, timeoutInSeconds: 600], serverName: 'vSphere SLC'
+
+		sleep 30
+		computer.connect(true)
+		sleep 30
+    }
 }
 
 def runTests(def supported_fs, String args)
