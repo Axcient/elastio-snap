@@ -21,6 +21,7 @@ def map_deb_distro = [
 	"debian10" : "buster-agent",
 	"debian11" : "bullseye-agent",
 	"debian12" : "bookworm-agent",
+	"debian13" : "trixie-agent",
 ]
 
 def test_disks = [:]
@@ -59,10 +60,10 @@ pipeline
 					{
 						name 'DISTRO'
 						values  'debian10', 'debian11', 'debian12', 'debian13',
-								'alma8', 'alma9',
-								'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
-								'rhel7', 'rhel8', 'rhel9',
-								'fedora43'
+							'alma8', 'alma9',
+							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
+							'rhel7', 'rhel8', 'rhel9',
+              'fedora43'
 					}
 				}
 				agent {
