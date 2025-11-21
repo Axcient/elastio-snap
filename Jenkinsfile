@@ -10,6 +10,9 @@ def map_rpm_distro = [
 	"centos7" : "maipo",
 	"centos8" : "ootpa",
 	"centos9" : "plow",
+	"rhel7" : "maipo",
+	"rhel8" : "ootpa",
+	"rhel9" : "plow"
 ]
 
 def map_deb_distro = [
@@ -63,7 +66,7 @@ pipeline
 							'alma8', 'alma9',
 							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
 							'rhel7', 'rhel8', 'rhel9',
-              'fedora43'
+							'fedora43'
 					}
 				}
 				agent {
@@ -82,10 +85,13 @@ pipeline
 					}
 					stage('Publish packages')
 					{
-						when { anyOf {
-							expression { map_deb_distro[env.DISTRO] != null }
-							expression { map_rpm_distro[env.DISTRO] != null }
-						} }
+						when {
+							not { changeRequest() }
+							anyOf {
+								expression { map_deb_distro[env.DISTRO] != null }
+								expression { map_rpm_distro[env.DISTRO] != null }
+							}
+						}
 						steps
 						{
 							lock(label: 'elastio-vmx', quantity: 1, resource : null)
@@ -150,23 +156,19 @@ pipeline
 def updateKernelWithReboot() {
 	def agentToReboot = env.NODE_NAME
 	sh '[ -f /etc/debian_version ] && (sudo apt update; sudo apt upgrade -y) || sudo yum upgrade -y'
-	sh 'sync; sleep 5'
+	sh 'sync && sleep 5'
 
-	node('master') {
-		def computer = Jenkins.instance.getNode(agentToReboot)?.computer
-		if (!computer) {
-			error "Node ${agentToReboot} not found in Jenkins!"
-		}
+	def computer = Jenkins.instance.getNode(agentToReboot)?.computer
+	if (!computer) {
+		error "Node ${agentToReboot} not found in Jenkins!"
+	}
 
-		computer.disconnect()
+	vSphere buildStep: [$class: 'PowerOff', vm: agentToReboot], serverName: 'vSphere SLC'
+	vSphere buildStep: [$class: 'PowerOn', vm: agentToReboot, timeoutInSeconds: 600], serverName: 'vSphere SLC'
 
-		vSphere buildStep: [$class: 'PowerOff', vm: agentToReboot], serverName: 'vSphere SLC'
-		vSphere buildStep: [$class: 'PowerOn', vm: agentToReboot, timeoutInSeconds: 600], serverName: 'vSphere SLC'
-
-		sleep 30
-		computer.connect(true)
-		sleep 30
-    }
+	sleep 30
+	computer.connect(true)
+	sleep 30
 }
 
 def runTests(def supported_fs, String args)
