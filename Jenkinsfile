@@ -10,6 +10,9 @@ def map_rpm_distro = [
 	"centos7" : "maipo",
 	"centos8" : "ootpa",
 	"centos9" : "plow",
+	"rhel7" : "maipo",
+	"rhel8" : "ootpa",
+	"rhel9" : "plow"
 ]
 
 def map_deb_distro = [
