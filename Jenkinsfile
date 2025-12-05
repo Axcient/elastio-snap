@@ -17,7 +17,6 @@ def map_deb_distro = [
 	"ubuntu2004" : "focal-agent",
 	"ubuntu2204" : "jammy-agent",
 	"ubuntu2404" : "noble-agent",
-
 	"debian10" : "buster-agent",
 	"debian11" : "bullseye-agent",
 	"debian12" : "bookworm-agent",
