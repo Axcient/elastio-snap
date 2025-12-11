@@ -114,7 +114,7 @@
 
 
 Name:            elastio-snap
-Version:         0.12.9
+Version:         0.12.10
 Release:         %{_release}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -651,6 +651,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Dec 2025 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.10
+ - [RA-6679] support v6.16+
+ - [RA-6863] Restore elastio-shap build pipeline
+ - [RA-6798] Add Debian 13
+ - [RA-6674] Add Trixie to deployToDebRepos
+ - [RA-6916] Publishing packages for elastio PRs
+
 * Thu Jul 17 2025 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.9
  - [RA-6417] Implement driver support for the Linux kernel v6.15
 
