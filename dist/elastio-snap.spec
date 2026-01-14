@@ -651,7 +651,7 @@ rm -rf %{buildroot}
 
 
 %changelog
-* Thu Dec 2025 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.10
+* Thu Dec 11 2025 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.10
  - [RA-6679] support v6.16+
  - [RA-6863] Restore elastio-shap build pipeline
  - [RA-6798] Add Debian 13

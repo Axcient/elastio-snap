@@ -63,7 +63,7 @@ pipeline
 							'alma8', 'alma9',
 							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
 							'rhel7', 'rhel8', 'rhel9',
-							'fedora43'
+							'fedora44'
 					}
 				}
 				agent {
@@ -73,7 +73,7 @@ pipeline
 				{
 					stage('Update kernel')
 					{
-						when { expression { env.DISTRO == 'fedora43' } }
+						when { expression { env.DISTRO == 'fedora44' } }
 						steps
 						{
 							updateKernelWithReboot()
