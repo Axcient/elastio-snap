@@ -31,6 +31,15 @@ pipeline
 {
 	agent none
 
+	parameters
+	{
+		booleanParam(
+			name: 'BUILD_FEDORA44',
+			defaultValue: false,
+			description: 'Enable Fedora 44 build'
+		)
+	}
+
 	options
 	{
 		buildDiscarder(logRotator(numToKeepStr: '10'))
@@ -65,6 +74,21 @@ pipeline
 							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
 							'rhel7', 'rhel8', 'rhel9', 'rhel10',
 							'fedora44'
+					}
+				}
+				excludes
+				{
+					exclude
+					{
+						axis
+						{
+							name 'DISTRO'
+							values 'fedora44'
+						}
+						when
+						{
+							expression { !params.BUILD_FEDORA44 }
+						}
 					}
 				}
 				agent {
