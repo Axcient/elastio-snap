@@ -9,8 +9,7 @@ def supported_fs = [ 'ext2', 'ext3', 'ext4', 'xfs']
 def map_rpm_distro = [
 	"rhel7" : "maipo",
 	"rhel8" : "ootpa",
-	"rhel9" : "plow",
-	"rhel10": "coughlan",
+	"rhel9" : "plow"
 ]
 
 def map_deb_distro = [
@@ -23,13 +22,6 @@ def map_deb_distro = [
 	"debian11" : "bullseye-agent",
 	"debian12" : "bookworm-agent",
 	"debian13" : "trixie-agent",
-]
-
-def distros = [
-    'debian10', 'debian11', 'debian12', 'debian13',
-    'alma8', 'alma9',
-    'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
-    'rhel7', 'rhel8', 'rhel9', 'rhel10'
 ]
 
 def test_disks = [:]
@@ -69,14 +61,6 @@ pipeline
 				}
 			}
 
-			script
-			{
-				if (params.BUILD_FEDORA44)
-				{
-					distros << 'fedora44'
-				}
-			}
-
 			matrix
 			{
 				axes
@@ -84,7 +68,19 @@ pipeline
 					axis
 					{
 						name 'DISTRO'
-						values distros
+						values  'debian10', 'debian11', 'debian12', 'debian13',
+							'alma8', 'alma9',
+							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
+							'rhel7', 'rhel8', 'rhel9',
+							'fedora44'
+					}
+				}
+				when
+				{
+					anyOf
+					{
+						expression { env.DISTRO != 'fedora44' }
+						expression { params.BUILD_FEDORA44 }
 					}
 				}
 				agent {
