@@ -36,6 +36,7 @@ pipeline
 		timestamps ()
 		disableConcurrentBuilds abortPrevious: true
 		timeout(time: 6, unit: 'HOURS')
+		skipStagesAfterUnstable()
 	}
 	stages
 	{
@@ -86,7 +87,7 @@ pipeline
 								catch (e)
 								{
 									currentBuild.result = 'SUCCESS'
-									error("Update kernel failed. Stopping fedora44 pipeline")
+									unstable("Update kernel failed. Stopping fedora44 pipeline")
 								}
 							}
 						}
