@@ -66,14 +66,6 @@ pipeline
 							'fedora44'
 					}
 				}
-				when
-				{
-					anyOf
-					{
-						expression { env.DISTRO != 'fedora44' }
-						expression { params.BUILD_FEDORA44 }
-					}
-				}
 				agent {
 					label "${DISTRO}_template_label"
 				}
