@@ -66,6 +66,14 @@ pipeline
 							'fedora44'
 					}
 				}
+				when
+				{
+					anyOf
+					{
+						expression { env.DISTRO != 'fedora44' }
+						expression { params.BUILD_FEDORA44 }
+					}
+				}
 				agent {
 					label "${DISTRO}_template_label"
 				}
@@ -76,14 +84,10 @@ pipeline
 						when { expression { env.DISTRO == 'fedora44' } }
 						steps
 						{
-							script {
-								try {
-									updateKernelWithReboot()
-									checkout scm
-								}
-								catch (e) {
-									echo "Fedora 44 failed, continue the rest"
-								}
+							catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE')
+							{
+								updateKernelWithReboot()
+								checkout scm
 							}
 						}
 					}
@@ -109,21 +113,11 @@ pipeline
 					{
 						steps
 						{
-							script
+							script { test_disks[env.DISTRO] = getTestDisks() }
+							lock(label: 'elastio-vmx', quantity: 1, resource : null)
 							{
-								try
-								{
-									test_disks[env.DISTRO] = getTestDisks()
-									lock(label: 'elastio-vmx', quantity: 1, resource : null)
-									{
-										sh "sudo make"
-										sh "sudo make install"
-									}
-								}
-								catch (e)
-								{
-									echo "Fedora 44 failed, continue the rest"
-								}
+								sh "sudo make"
+								sh "sudo make install"
 							}
 						}
 					}
