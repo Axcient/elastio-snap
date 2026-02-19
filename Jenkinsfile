@@ -30,15 +30,6 @@ pipeline
 {
 	agent none
 
-	parameters
-	{
-		booleanParam(
-			name: 'BUILD_FEDORA44',
-			defaultValue: false,
-			description: 'Enable Fedora 44 build'
-		)
-	}
-
 	options
 	{
 		buildDiscarder(logRotator(numToKeepStr: '10'))
@@ -93,8 +84,15 @@ pipeline
 						when { expression { env.DISTRO == 'fedora44' } }
 						steps
 						{
-							updateKernelWithReboot()
-							checkout scm
+							script {
+								try {
+									updateKernelWithReboot()
+									checkout scm
+								}
+								catch (e) {
+									echo "Fedora 44 failed, continue the rest"
+								}
+							}
 						}
 					}
 					stage('Publish packages')
