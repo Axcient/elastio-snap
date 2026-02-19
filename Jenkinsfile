@@ -76,10 +76,15 @@ pipeline
 						when { expression { env.DISTRO == 'fedora44' } }
 						steps
 						{
-							catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE')
+							try
 							{
 								updateKernelWithReboot()
 								checkout scm
+							}
+							catch (e)
+							{
+								currentBuild.result = 'SUCCESS'
+								error("Update kernel failed. Stopping fedora44 pipeline")
 							}
 						}
 					}
