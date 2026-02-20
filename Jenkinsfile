@@ -36,6 +36,7 @@ pipeline
 		timestamps ()
 		disableConcurrentBuilds abortPrevious: true
 		timeout(time: 6, unit: 'HOURS')
+		skipStagesAfterUnstable()
 	}
 	stages
 	{
@@ -78,15 +79,15 @@ pipeline
 						{
 							script
 							{
-								catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE')
+								try
 								{
 									updateKernelWithReboot()
 									checkout scm
 								}
-
-								if (currentBuild.currentResult == 'FAILURE')
+								catch (e)
 								{
-									error("Stop fedora44 pipeline")
+									currentBuild.result = 'SUCCESS'
+									unstable("Update kernel failed. Stopping fedora44 pipeline")
 								}
 							}
 						}
