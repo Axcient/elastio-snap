@@ -36,7 +36,6 @@ pipeline
 		timestamps ()
 		disableConcurrentBuilds abortPrevious: true
 		timeout(time: 6, unit: 'HOURS')
-		skipStagesAfterUnstable()
 	}
 	stages
 	{
@@ -79,14 +78,13 @@ pipeline
 						{
 							script
 							{
-								try
+								catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE')
 								{
 									updateKernelWithReboot()
 									checkout scm
 								}
-								catch (e)
+								if (currentBuild.currentResult == 'FAILURE')
 								{
-									currentBuild.result = 'SUCCESS'
 									env.SKIP_REST = "true"
 								}
 							}
@@ -95,7 +93,7 @@ pipeline
 					stage('Publish packages')
 					{
 						when {
-							expression { env.SKIP_REST != "true" }
+							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
 							not { changeRequest() }
 							anyOf {
 								expression { map_deb_distro[env.DISTRO] != null }
@@ -114,7 +112,7 @@ pipeline
 					stage('Build kernel module')
 					{
 						when {
-							expression { env.SKIP_REST != "true" }
+							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
 						}
 						steps
 						{
@@ -131,21 +129,21 @@ pipeline
 					stage('Run tests (loop device)') 
 					{
 						when {
-							expression { env.SKIP_REST != "true" }
+							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
 						}
 						steps { runTests(supported_fs, "") } 
 					}
 					stage('Run tests on LVM (loop device)')
 					{
 						when {
-							expression { env.SKIP_REST != "true" }
+							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
 						}
 						steps { runTests(supported_fs, "--lvm") }
 					}
 					stage('Run tests on RAID (loop device)')
 					{
 						when {
-							expression { env.SKIP_REST != "true" }
+							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
 						}
 						steps { runTests(supported_fs, "--raid") }
 					}
@@ -153,7 +151,7 @@ pipeline
 					stage('Run tests (qcow2 disk)')
 					{
 						when {
-							expression { env.SKIP_REST != "true" }
+							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
 							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
 						}
 						steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}1") }
@@ -162,7 +160,7 @@ pipeline
 					stage('Run tests on LVM (qcow2 disks)')
 					{
 						when {
-							expression { env.SKIP_REST != "true" }
+							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
 							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
 						}
 						steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --lvm") }
@@ -174,7 +172,7 @@ pipeline
 						// mount of the raid1 device with XFS even if elastio-snap is not loaded. See https://bugzilla.redhat.com/show_bug.cgi?id=1111290
 						when
 						{
-							expression { env.SKIP_REST != "true" }
+							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
 							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
 							expression { env.DISTRO != 'debian8' }
 						}
@@ -183,7 +181,7 @@ pipeline
 
 					stage('Run tests multipart  (qcow2 disks)') {
 						when {
-							expression { env.SKIP_REST != "true" }
+							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
 							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
 						}
 						steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}  -t test_multipart") }
