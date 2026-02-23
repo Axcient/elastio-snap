@@ -80,16 +80,8 @@ pipeline
 							{
 								catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE')
 								{
-									try
-									{
-										updateKernelWithReboot()
-										checkout scm
-									}
-									catch (e)
-									{
-										env.SKIP_REST = "true"
-										throw e
-									}
+									updateKernelWithReboot()
+									checkout scm
 								}
 							}
 						}
@@ -97,7 +89,6 @@ pipeline
 					stage('Publish packages')
 					{
 						when {
-							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
 							not { changeRequest() }
 							anyOf {
 								expression { map_deb_distro[env.DISTRO] != null }
@@ -115,17 +106,29 @@ pipeline
 
 					stage('Build kernel module')
 					{
-						when {
-							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
-						}
 						steps
 						{
-							script { test_disks[env.DISTRO] = getTestDisks() }
-							lock(label: 'elastio-vmx', quantity: 1, resource : null)
+							script
 							{
-								sh "sudo make"
-								sh "sudo make install"
+								catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE')
+								{
+									try
+									{
+										script { test_disks[env.DISTRO] = getTestDisks() }
+										lock(label: 'elastio-vmx', quantity: 1, resource : null)
+										{
+											sh "sudo make"
+											sh "sudo make install"
+										}
+									}
+									catch (e)
+									{
+										env.SKIP_REST = "true"
+										throw e
+									}
+								}
 							}
+							
 						}
 					}
 
