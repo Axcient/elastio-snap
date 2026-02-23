@@ -80,12 +80,16 @@ pipeline
 							{
 								catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE')
 								{
-									updateKernelWithReboot()
-									checkout scm
-								}
-								if (currentBuild.currentResult == 'FAILURE')
-								{
-									env.SKIP_REST = "true"
+									try
+									{
+										updateKernelWithReboot()
+										checkout scm
+									}
+									catch (e)
+									{
+										env.SKIP_REST = "true"
+										throw e
+									}
 								}
 							}
 						}
