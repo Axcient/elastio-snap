@@ -24,6 +24,11 @@ def map_deb_distro = [
 	"debian13" : "trixie-agent",
 ]
 
+def shouldRunStage()
+{
+    return !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true")
+}
+
 def test_disks = [:]
 
 pipeline
@@ -62,7 +67,7 @@ pipeline
 						values  'debian10', 'debian11', 'debian12', 'debian13',
 							'alma8', 'alma9',
 							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
-							'rhel7', 'rhel8', 'rhel9',
+							'rhel7', 'rhel8', 'rhel9', 'rhel10',
 							'fedora44'
 					}
 				}
@@ -76,8 +81,14 @@ pipeline
 						when { expression { env.DISTRO == 'fedora44' } }
 						steps
 						{
-							updateKernelWithReboot()
-							checkout scm
+							script
+							{
+								catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE')
+								{
+									updateKernelWithReboot()
+									checkout scm
+								}
+							}
 						}
 					}
 					stage('Publish packages')
@@ -102,29 +113,68 @@ pipeline
 					{
 						steps
 						{
-							script { test_disks[env.DISTRO] = getTestDisks() }
-							lock(label: 'elastio-vmx', quantity: 1, resource : null)
+							script
 							{
-								sh "sudo make"
-								sh "sudo make install"
+								catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE')
+								{
+									try
+									{
+										script { test_disks[env.DISTRO] = getTestDisks() }
+										lock(label: 'elastio-vmx', quantity: 1, resource : null)
+										{
+											sh "sudo make"
+											sh "sudo make install"
+										}
+									}
+									catch (e)
+									{
+										env.SKIP_REST = "true"
+										throw e
+									}
+								}
 							}
+							
 						}
 					}
 
 
-					stage('Run tests (loop device)') { steps { runTests(supported_fs, "") } }
-					stage('Run tests on LVM (loop device)') { steps { runTests(supported_fs, "--lvm") } }
-					stage('Run tests on RAID (loop device)') { steps { runTests(supported_fs, "--raid") } }
+					stage('Run tests (loop device)') 
+					{
+						when {
+							expression { shouldRunStage() }
+						}
+						steps { runTests(supported_fs, "") } 
+					}
+					stage('Run tests on LVM (loop device)')
+					{
+						when {
+							expression { shouldRunStage() }
+						}
+						steps { runTests(supported_fs, "--lvm") }
+					}
+					stage('Run tests on RAID (loop device)')
+					{
+						when {
+							expression { shouldRunStage() }
+						}
+						steps { runTests(supported_fs, "--raid") }
+					}
 
 					stage('Run tests (qcow2 disk)')
 					{
-						when { branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP" }
+						when {
+							expression { shouldRunStage() }
+							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
+						}
 						steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}1") }
 					}
 
 					stage('Run tests on LVM (qcow2 disks)')
 					{
-						when { branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP" }
+						when {
+							expression { shouldRunStage() }
+							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
+						}
 						steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --lvm") }
 					}
 
@@ -134,6 +184,7 @@ pipeline
 						// mount of the raid1 device with XFS even if elastio-snap is not loaded. See https://bugzilla.redhat.com/show_bug.cgi?id=1111290
 						when
 						{
+							expression { shouldRunStage() }
 							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
 							expression { env.DISTRO != 'debian8' }
 						}
@@ -141,7 +192,10 @@ pipeline
 					}
 
 					stage('Run tests multipart  (qcow2 disks)') {
-						when { branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP" }
+						when {
+							expression { shouldRunStage() }
+							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
+						}
 						steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}  -t test_multipart") }
 					}
 				}
