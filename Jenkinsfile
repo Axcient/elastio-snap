@@ -24,6 +24,11 @@ def map_deb_distro = [
 	"debian13" : "trixie-agent",
 ]
 
+def shouldRunStage()
+{
+    return !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true")
+}
+
 def test_disks = [:]
 
 pipeline
@@ -136,21 +141,21 @@ pipeline
 					stage('Run tests (loop device)') 
 					{
 						when {
-							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
+							expression { shouldRunStage() }
 						}
 						steps { runTests(supported_fs, "") } 
 					}
 					stage('Run tests on LVM (loop device)')
 					{
 						when {
-							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
+							expression { shouldRunStage() }
 						}
 						steps { runTests(supported_fs, "--lvm") }
 					}
 					stage('Run tests on RAID (loop device)')
 					{
 						when {
-							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
+							expression { shouldRunStage() }
 						}
 						steps { runTests(supported_fs, "--raid") }
 					}
@@ -158,7 +163,7 @@ pipeline
 					stage('Run tests (qcow2 disk)')
 					{
 						when {
-							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
+							expression { shouldRunStage() }
 							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
 						}
 						steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}1") }
@@ -167,7 +172,7 @@ pipeline
 					stage('Run tests on LVM (qcow2 disks)')
 					{
 						when {
-							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
+							expression { shouldRunStage() }
 							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
 						}
 						steps { runTests(supported_fs, " -d ${test_disks[env.DISTRO][0]} -d ${test_disks[env.DISTRO][1]} --lvm") }
@@ -179,7 +184,7 @@ pipeline
 						// mount of the raid1 device with XFS even if elastio-snap is not loaded. See https://bugzilla.redhat.com/show_bug.cgi?id=1111290
 						when
 						{
-							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
+							expression { shouldRunStage() }
 							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
 							expression { env.DISTRO != 'debian8' }
 						}
@@ -188,7 +193,7 @@ pipeline
 
 					stage('Run tests multipart  (qcow2 disks)') {
 						when {
-							expression { !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true") }
+							expression { shouldRunStage() }
 							branch pattern: '^(build|release|develop|master|staging).*', comparator: "REGEXP"
 						}
 						steps { runTests(supported_fs, "-d ${test_disks[env.DISTRO][0]}  -t test_multipart") }
