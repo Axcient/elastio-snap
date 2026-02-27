@@ -9,7 +9,8 @@ def supported_fs = [ 'ext2', 'ext3', 'ext4', 'xfs']
 def map_rpm_distro = [
 	"rhel7" : "maipo",
 	"rhel8" : "ootpa",
-	"rhel9" : "plow"
+	"rhel9" : "plow",
+	"rhel10" : "coughlan"
 ]
 
 def map_deb_distro = [
