@@ -57,12 +57,10 @@ pipeline {
 def deployToDebRepos(String branch, String build, String deploy_to)
 {
 	def deb_repos = [
-		'bionic-agent',
 		'focal-agent',
 		'jammy-agent',
 		'noble-agent',
 		'bullseye-agent',
-		'buster-agent',
 		'bookworm-agent',
 		'trixie-agent',
 	] as String[]
@@ -75,7 +73,6 @@ def deployToRpmRepos(String branch, String build, String deploy_to)
 
 	def rpm_repos = [
 		'ootpa',
-		'maipo',
 		'plow',
 		'coughlan',
 	] as String[]
