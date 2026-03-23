@@ -7,19 +7,16 @@ def artifactoryRoot = "replibit/elastio/"
 def supported_fs = [ 'ext2', 'ext3', 'ext4', 'xfs']
 
 def map_rpm_distro = [
-	"rhel7" : "maipo",
 	"rhel8" : "ootpa",
 	"rhel9" : "plow",
 	"rhel10" : "coughlan"
 ]
 
 def map_deb_distro = [
-	"ubuntu1804" : "bionic-agent",
 	"ubuntu2004" : "focal-agent",
 	"ubuntu2204" : "jammy-agent",
 	"ubuntu2404" : "noble-agent",
 
-	"debian10" : "buster-agent",
 	"debian11" : "bullseye-agent",
 	"debian12" : "bookworm-agent",
 	"debian13" : "trixie-agent",
