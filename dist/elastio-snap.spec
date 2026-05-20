@@ -114,7 +114,7 @@
 
 
 Name:            elastio-snap
-Version:         0.12.10
+Version:         0.12.11
 Release:         %{_release}
 Summary:         Kernel module and utilities for enabling low-level live backups
 Vendor:          Elastio Software, Inc.
@@ -651,6 +651,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri May 15 2026 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.11
+ - [RA-7193] Remove legacy distros build support
+ - [RA-7033] Deploy RHEL10
+ - [RA-7032] Add RHEL 10
+ - [RA-7078] Integrate Fedora 44 with elastio-snap CI tests
+
 * Thu Dec 11 2025 Stanislav Barantsev <sbarantsev@axcient.com> - 0.12.10
  - [RA-6679] support v6.16+
  - [RA-6863] Restore elastio-shap build pipeline
