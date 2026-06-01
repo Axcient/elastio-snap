@@ -1170,6 +1170,7 @@ struct snap_device{
 #else
 	struct bio_set sd_bioset; //allocation pool for bios
 #endif
+	atomic64_t sd_bio_splitted;
 	atomic64_t sd_submitted_cnt; //count of read clones submitted to underlying driver
 	atomic64_t sd_received_cnt; //count of read clones submitted to underlying driver
 	atomic64_t sd_processed_cnt; //count of read clones processed in snap_cow_thread()
@@ -4057,6 +4058,7 @@ static int snap_cow_thread(void *data){
 			atomic64_inc(&dev->sd_processed_cnt);
 			bio_free_clone(bio);
 		}
+		cond_resched();
 	}
 
 	LOG_DEBUG("snap_cow_thread() done.");
@@ -4319,6 +4321,7 @@ static int snap_trace_bio(struct snap_device *dev, struct bio *bio){
 		bio_pair_release(bp);
 		return 0;
 #endif
+		atomic64_inc(&dev->sd_bio_splitted);
 	}
 
 #if defined HAVE_ENUM_REQ_OPF || defined HAVE_ENUM_REQ_OP
@@ -5322,6 +5325,7 @@ static int __tracer_setup_snap(struct snap_device *dev, unsigned int minor, stru
 	}
 
 	atomic64_set(&dev->sd_submitted_cnt, 0);
+	atomic64_set(&dev->sd_bio_splitted, 0);
 	atomic64_set(&dev->sd_received_cnt, 0);
 	atomic64_set(&dev->sd_processed_cnt, 0);
 	atomic64_set(&dev->sd_discard_dropped_cnt, 0);
@@ -7047,6 +7051,7 @@ static int elastio_snap_proc_show(struct seq_file *m, void *v){
 		seq_printf(m, "\t\t\t\"ignore_errors\": %i,\n", dev->sd_ignore_snap_errors);
 		seq_printf(m, "\t\t\t\"bio_op_discard_ignored\": %llu,\n", atomic64_read(&dev->sd_discard_dropped_cnt));
 		seq_printf(m, "\t\t\t\"discard_sectors_ignored\": %llu,\n", atomic64_read(&dev->sd_discard_ignored_size));
+		seq_printf(m, "\t\t\t\"bio splitted\": %llu,\n", atomic64_read(&dev->sd_bio_splitted));
 		seq_printf(m, "\t\t\t\"cow_on_bdev\": %s\n", test_bit(COW_ON_BDEV, &dev->sd_cow_state) ? "true" : "false");
 		seq_printf(m, "\t\t}");
 	}
