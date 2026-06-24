@@ -990,7 +990,7 @@ static void bio_free_pages(struct bio *bio){
  * instead of 6 as in other kernels, where this enum is present. And it doesn't have defined REQ_OP_BITS, which could
  * be defined and equal to the 2 bits.
  */
-#define __ELASTIO_SNAP_PASSTHROUGH 28	// set as the last flag bit
+#define __ELASTIO_SNAP_PASSTHROUGH (__REQ_NR_BITS)	// set as the last flag bit
 #else
 // set as an unused flag in versions older than 4.8
 // set as an unused opcode bit in kernels newer than 4.9
