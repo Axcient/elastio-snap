@@ -979,7 +979,7 @@ static void bio_free_pages(struct bio *bio){
 #define bio_last_sector(bio) (bio_sector(bio) + (bio_size(bio) / SECTOR_SIZE))
 
 /* don't perform COW operation */
-#if defined HAVE_ENUM_REQ_OP && defined REQ_OP_BITS
+#if defined HAVE_ENUM_REQ_OP && defined REQ_OP_BITS && defined BIO_OP_SHIFT
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0) && LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0)
 /* special case for deb9's 4.9 train
  * Bit 30 conflicts with struct bio's bi_opf opcode bitfield, which occupies the top 3 bits of the member. If we set
@@ -989,10 +989,11 @@ static void bio_free_pages(struct bio *bio){
  * Note: CentOS 7 has enum req_op starting from the version 7.4, kernel 3.10.0-693. But this enum has just 4 values
  * instead of 6 as in other kernels, where this enum is present. And it doesn't have defined REQ_OP_BITS, which could
  * be defined and equal to the 2 bits.
- *
- * Note: For versions newer 4.9 low REQ_OP_BITS occupies to opcode, and first enum for flags declared as __REQ_FAILFAST_DEV = REQ_OP_BITS.
  */
-#define __ELASTIO_SNAP_PASSTHROUGH ( (__REQ_FAILFAST_DEV == REQ_OP_BITS) ? __REQ_NR_BITS : 28)
+#define __ELASTIO_SNAP_PASSTHROUGH 28
+#elif defined HAVE_ENUM_REQ_OP && defined REQ_OP_BITS
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
+#define __ELASTIO_SNAP_PASSTHROUGH __REQ_NR_BITS
 #else
 // set as an unused flag in versions older than 4.8
 #define __ELASTIO_SNAP_PASSTHROUGH 30
