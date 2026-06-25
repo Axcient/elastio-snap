@@ -989,11 +989,12 @@ static void bio_free_pages(struct bio *bio){
  * Note: CentOS 7 has enum req_op starting from the version 7.4, kernel 3.10.0-693. But this enum has just 4 values
  * instead of 6 as in other kernels, where this enum is present. And it doesn't have defined REQ_OP_BITS, which could
  * be defined and equal to the 2 bits.
+ *
+ * Note: For versions newer 4.9 low REQ_OP_BITS occupies to opcode, and first enum for flags declared as __REQ_FAILFAST_DEV = REQ_OP_BITS.
  */
-#define __ELASTIO_SNAP_PASSTHROUGH (__REQ_NR_BITS)	// set as the last flag bit
+#define __ELASTIO_SNAP_PASSTHROUGH ( (__REQ_FAILFAST_DEV == REQ_OP_BITS) ? __REQ_NR_BITS : 28)
 #else
 // set as an unused flag in versions older than 4.8
-// set as an unused opcode bit in kernels newer than 4.9
 #define __ELASTIO_SNAP_PASSTHROUGH 30
 #endif
 #if (__GNUC__ > 4)
