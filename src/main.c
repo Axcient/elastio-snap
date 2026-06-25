@@ -996,6 +996,9 @@ static void bio_free_pages(struct bio *bio){
 // set as an unused opcode bit in kernels newer than 4.9
 #define __ELASTIO_SNAP_PASSTHROUGH 30
 #endif
+#if (__GNUC__ > 4)
+static_assert(__ELASTIO_SNAP_PASSTHROUGH < 32, "Not enough bits for mark BIO at flags");
+#endif
 #define ELASTIO_SNAP_PASSTHROUGH (1ULL << __ELASTIO_SNAP_PASSTHROUGH)
 
 #define ELASTIO_SNAP_DEFAULT_SNAP_DEVICES 24
