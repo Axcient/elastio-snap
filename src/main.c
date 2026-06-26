@@ -979,7 +979,7 @@ static void bio_free_pages(struct bio *bio){
 #define bio_last_sector(bio) (bio_sector(bio) + (bio_size(bio) / SECTOR_SIZE))
 
 /* don't perform COW operation */
-#if defined HAVE_ENUM_REQ_OP && defined REQ_OP_BITS
+#if defined HAVE_ENUM_REQ_OP && defined REQ_OP_BITS && defined BIO_OP_SHIFT
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0) && LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0)
 /* special case for deb9's 4.9 train
  * Bit 30 conflicts with struct bio's bi_opf opcode bitfield, which occupies the top 3 bits of the member. If we set
@@ -990,11 +990,16 @@ static void bio_free_pages(struct bio *bio){
  * instead of 6 as in other kernels, where this enum is present. And it doesn't have defined REQ_OP_BITS, which could
  * be defined and equal to the 2 bits.
  */
-#define __ELASTIO_SNAP_PASSTHROUGH 28	// set as the last flag bit
+#define __ELASTIO_SNAP_PASSTHROUGH 28
+#elif defined HAVE_ENUM_REQ_OP && defined REQ_OP_BITS
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
+#define __ELASTIO_SNAP_PASSTHROUGH __REQ_NR_BITS
 #else
 // set as an unused flag in versions older than 4.8
-// set as an unused opcode bit in kernels newer than 4.9
 #define __ELASTIO_SNAP_PASSTHROUGH 30
+#endif
+#if (__GNUC__ > 4)
+_Static_assert(__ELASTIO_SNAP_PASSTHROUGH < 32, "Not enough bits for mark BIO at flags");
 #endif
 #define ELASTIO_SNAP_PASSTHROUGH (1ULL << __ELASTIO_SNAP_PASSTHROUGH)
 
