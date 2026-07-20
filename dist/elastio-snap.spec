@@ -629,6 +629,7 @@ rm -rf %{buildroot}
 %{_kmod_src_root}/nl_debug.c
 %{_kmod_src_root}/nl_debug.h
 %{_kmod_src_root}/elastio-snap.h
+%{_kmod_src_root}/dkms-make.sh
 %{_kmod_src_root}/dkms.conf
 %{_kmod_src_root}/genconfig.sh
 %{_kmod_src_root}/includes.h
