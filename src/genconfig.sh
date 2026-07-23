@@ -140,7 +140,7 @@ done < $CONFIG_TESTS_FILE
 echo "" >> $OUTPUT_FILE
 echo "#endif" >> $OUTPUT_FILE
 
-rpm_configure_gcc_for_dkms() {
+configure_gcc_for_dkms_rhel() {
 	local GCC_MAJOR=$(grep "CONFIG_CC_VERSION_TEXT=" "$SYSTEM_CONFIG_FILE" | sed -E 's/.*\) ([0-9]+)\..*/\1/')
 
 	if [[ -n $GCC_MAJOR ]]; then
@@ -153,5 +153,5 @@ rpm_configure_gcc_for_dkms() {
 }
 
 if [[ -f /etc/redhat-release ]]; then
-	rpm_configure_gcc_for_dkms
+	configure_gcc_for_dkms_rhel
 fi
