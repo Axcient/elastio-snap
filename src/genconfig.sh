@@ -147,7 +147,7 @@ configure_gcc_for_dkms_rhel() {
 		local GCC_ENV="/opt/rh/gcc-toolset-$GCC_MAJOR/enable"
 
 		if [[ -f $GCC_ENV ]]; then
-			echo "build_environment=$GCC_ENV" > /etc/dkms/framework.conf.d/elastio-snap.conf
+			echo "build_environment='source $GCC_ENV'" > /etc/dkms/framework.conf.d/elastio-snap.conf
 		fi
 	fi
 }
