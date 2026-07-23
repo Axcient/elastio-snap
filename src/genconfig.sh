@@ -15,7 +15,7 @@ FEATURE_TEST_FILES="$FEATURE_TEST_DIR/*.c"
 SYMBOL_TESTS_FILE="$SRC_DIR/configure-tests/symbol-tests"
 CONFIG_TESTS_FILE="$SRC_DIR/configure-tests/config-tests"
 KERNEL_VERSION=$(uname -r)
-MAKE_ENV_FILE="elastio.env"
+MAKE_ENV_FILE=${2:-"elastio.env"}
 MAX_THREADS=$(echo "$3" | sed -E 's/.*-j\s*([0-9]+).*/\1/')
 if ! [[ "$MAX_THREADS" =~ '^[0-9]+$' ]]; then # if there was no -j flag provided, default to the number of processors
 	MAX_THREADS=$(getconf _NPROCESSORS_ONLN)
@@ -23,10 +23,6 @@ fi
 
 if [ ! -z "$1" ]; then
 	KERNEL_VERSION="$1"
-fi
-
-if [[ -n "$2" ]]; then
-	MAKE_ENV_FILE="$2"
 fi
 
 # As a fallback mechanism, if System.map is not found, download
@@ -153,21 +149,15 @@ configure_gcc_for_dkms_rhel() {
 		echo "could not parse GCC major version"
 		return
 	fi
-	local FOUND=0
+
 	for ((i=0; i<5; i++)); do
 		local GCC_ENV="/opt/rh/gcc-toolset-$((GCC_MAJOR+i))/enable"
 
 		if [[ -f "$GCC_ENV" ]]; then
 			ln -sf "$GCC_ENV" "$MAKE_ENV_FILE"
-			FOUND=1
 			break
 		fi
 	done
-
-	if [[ $FOUND -eq 0 ]]; then
-		echo "could not find the required GCC toolset"
-		return
-	fi
 }
 
 ln -sf /dev/null "$MAKE_ENV_FILE"
