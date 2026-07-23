@@ -151,7 +151,7 @@ configure_gcc_for_dkms_rhel() {
 
 	if [[ -z $GCC_MAJOR ]]; then
 		echo "could not parse GCC major version"
-		return 1
+		return
 	fi
 	local FOUND=0
 	for ((i=0; i<5; i++)); do
@@ -166,7 +166,7 @@ configure_gcc_for_dkms_rhel() {
 
 	if [[ $FOUND -eq 0 ]]; then
 		echo "could not find the required GCC toolset"
-		return 1
+		return
 	fi
 }
 
