@@ -139,3 +139,19 @@ done < $CONFIG_TESTS_FILE
 
 echo "" >> $OUTPUT_FILE
 echo "#endif" >> $OUTPUT_FILE
+
+rpm_configure_gcc_for_dkms() {
+	local GCC_MAJOR=$(grep "CONFIG_CC_VERSION_TEXT=" "$SYSTEM_CONFIG_FILE" | sed -E 's/.*\) ([0-9]+)\..*/\1/')
+
+	if [[ -n $GCC_MAJOR ]]; then
+		local GCC_ENV="/opt/rh/gcc-toolset-$GCC_MAJOR/enable"
+
+		if [[ -f $GCC_ENV ]]; then
+			echo "build_environment=$GCC_ENV" > /etc/dkms/framework.conf.d/elastio-snap.conf
+		fi
+	fi
+}
+
+if [[ -f /etc/redhat-release ]]; then
+	rpm_configure_gcc_for_dkms
+fi
