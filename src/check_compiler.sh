@@ -7,11 +7,15 @@ FEATURE_TEST_FILES="$FEATURE_TEST_DIR/compiler.c"
 KERNEL_VERSION=${1:-$(uname -r)}
 MAKE_ENV_FILE=${2:-"elastio.env"}
 
+function clean_feature_test_build {
+    rm -rf "${FEATURE_TEST_DIR}/build"
+    make -s -C $FEATURE_TEST_DIR clean KERNELVERSION=$KERNEL_VERSION
+}
+
 ln -sf /dev/null "$MAKE_ENV_FILE"
 if [[ -f /etc/redhat-release ]]; then
     echo "Check compiler for redhat kernel-${KERNEL_VERSION} ..."
-    rm -rf "${FEATURE_TEST_DIR}/build"
-    make -s -C $FEATURE_TEST_DIR clean KERNELVERSION=$KERNEL_VERSION
+    clean_feature_test_build
 
     if make -C $FEATURE_TEST_DIR TEST_NAME=compiler KERNELVERSION=$KERNEL_VERSION; then
         echo "System compiler was passed"
@@ -19,6 +23,7 @@ if [[ -f /etc/redhat-release ]]; then
     fi
 
     for toolset in $(ls -1 /opt/rh/gcc-toolset-*/enable); do
+        clean_feature_test_build
         source ${toolset}
         if make -C $FEATURE_TEST_DIR TEST_NAME=compiler KERNELVERSION=$KERNEL_VERSION; then
             echo "Toolset ${toolset} was passed"
