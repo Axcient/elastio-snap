@@ -25,6 +25,16 @@ ifeq ($(NETLINK_DEBUG),y)
 EXTRA_CFLAGS += -DNETLINK_DEBUG
 endif
 
+ifeq ($(COMPAT_OLD_GCC),y)
+UNSUPPORTED_OLD_GCC_FLAGS := \
+    -fzero-call-used-regs=% \
+    -ftrivial-auto-var-init=% \
+    -Wno-alloc-size-larger-than
+KBUILD_CFLAGS := $(filter-out $(UNSUPPORTED_OLD_GCC_FLAGS),$(KBUILD_CFLAGS))
+KBUILD_CFLAGS += -Wno-error
+EXTRA_CFLAGS += -Wno-error
+endif
+
 ccflags-y += $(EXTRA_CFLAGS)
 
 FEATURE_TEST_BUILD_DIR := configure-tests/feature-tests/build
