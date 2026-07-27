@@ -13,6 +13,10 @@ BUILDDIR ?= $(PWD)/build/$(OBJ)
 BUILDDIR_MAKEFILE ?= $(PWD)/build/$(OBJ)/Makefile
 BUILDDIR_SOURCE ?= $(PWD)/build/$(OBJ)/$(SRC)
 
+
+src ?= $(PWD)
+include $(src)/../../prehistoric_gcc.mk
+
 ccflags-y += $(EXTRA_CFLAGS)
 
 default: $(BUILDDIR_MAKEFILE)

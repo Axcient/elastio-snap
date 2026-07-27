@@ -21,18 +21,11 @@ PWD := $(shell pwd)
 INSTALL_MOD_DIR ?= extra
 EXTRA_CFLAGS := -g -DKERNEL_MODULE
 
+src ?= $(PWD)
+include $(src)/prehistoric_gcc.mk
+
 ifeq ($(NETLINK_DEBUG),y)
 EXTRA_CFLAGS += -DNETLINK_DEBUG
-endif
-
-ifeq ($(COMPAT_OLD_GCC),y)
-UNSUPPORTED_OLD_GCC_FLAGS := \
-    -fzero-call-used-regs=% \
-    -ftrivial-auto-var-init=% \
-    -Wno-alloc-size-larger-than
-KBUILD_CFLAGS := $(filter-out $(UNSUPPORTED_OLD_GCC_FLAGS),$(KBUILD_CFLAGS))
-KBUILD_CFLAGS += -Wno-error
-EXTRA_CFLAGS += -Wno-error
 endif
 
 ccflags-y += $(EXTRA_CFLAGS)
@@ -41,15 +34,15 @@ FEATURE_TEST_BUILD_DIR := configure-tests/feature-tests/build
 
 default:
 	if [ ! -f kernel-config.h ] || tail -1 kernel-config.h | grep -qv '#endif'; then mkdir $(FEATURE_TEST_BUILD_DIR); ./genconfig.sh "$(KERNELVERSION)" "$(MFLAGS)"; fi;
-	$(MAKE) -C $(KDIR) M=$(PWD) modules
+	$(MAKE) -C $(KDIR) M=$(PWD) src=$(PWD) modules
 
 clean:
-	$(MAKE) -C $(KDIR) M=$(PWD) clean
+	$(MAKE) -C $(KDIR) M=$(PWD) src=$(PWD) clean
 	$(RM) kernel-config.h
 	$(RM) -r $(FEATURE_TEST_BUILD_DIR)
 
 install: default
-	$(MAKE) -C $(KDIR) M=$(PWD) modules_install
+	$(MAKE) -C $(KDIR) M=$(PWD) src=$(PWD) modules_install
 
 uninstall:
 	$(RM) /lib/modules/$(KERNELVERSION)/$(INSTALL_MOD_DIR)/elastio-snap.ko
