@@ -24,6 +24,49 @@ if [ ! -z "$1" ]; then
 	KERNEL_VERSION="$1"
 fi
 
+MAKE_ENV_FILE=${2:-"elastio.env"}
+
+function clean_feature_test_build {
+    rm -rf "${FEATURE_TEST_DIR}/build"
+    make -s -C $FEATURE_TEST_DIR clean KERNELVERSION=$KERNEL_VERSION
+}
+
+function rpm_check_compiler() {
+	local _FEATURE_TEST_FILES="$FEATURE_TEST_DIR/compiler.c"
+
+	echo "Check compiler for redhat kernel-${KERNEL_VERSION} ..."
+	clean_feature_test_build
+
+	if make -C $_FEATURE_TEST_DIR TEST_NAME=compiler KERNELVERSION=$KERNEL_VERSION; then
+		echo "System compiler was passed"
+		return
+	fi
+
+	for toolset in $(ls -1 /opt/rh/gcc-toolset-*/enable); do
+		clean_feature_test_build
+		source ${toolset}
+		if make -C $FEATURE_TEST_DIR TEST_NAME=compiler KERNELVERSION=$KERNEL_VERSION; then
+			echo "Toolset ${toolset} was passed"
+			ln -sf "${toolset}" "$MAKE_ENV_FILE"
+			return
+		fi
+	done
+
+	GCC_MAJOR=$(sed -nE 's/CONFIG_GCC_VERSION=(.+)..../\1/p' "/boot/config-$KERNEL_VERSION")
+	echo "Any toolset was not passed. Most probably need to install gcc-toolset-${GCC_MAJOR}. Trying compile without Wall."
+	rm -rf "$MAKE_ENV_FILE"
+	echo "export COMPAT_OLD_GCC=y" > "$MAKE_ENV_FILE"
+}
+
+# create the env file to work without errors on debian as well
+ln -sf /dev/null "$MAKE_ENV_FILE"
+
+# try to find and enable the required gcc for the build
+if [[ -f /etc/redhat-release ]]; then
+	rpm_check_compiler
+	source "$MAKE_ENV_FILE"
+fi
+
 # As a fallback mechanism, if System.map is not found, download
 # the debug linux kernel package and extract it from there
 deb_extract_system_map() {
