@@ -631,7 +631,6 @@ rm -rf %{buildroot}
 %{_kmod_src_root}/elastio-snap.h
 %{_kmod_src_root}/dkms.conf
 %{_kmod_src_root}/genconfig.sh
-%{_kmod_src_root}/check_compiler.sh
 %{_kmod_src_root}/prehistoric_gcc.mk
 %{_kmod_src_root}/includes.h
 %exclude %dir %{_kmod_src_root}/configure-tests/feature-tests/build
