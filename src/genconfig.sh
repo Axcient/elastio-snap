@@ -49,7 +49,7 @@ function rpm_check_compiler() {
 
 	GCC_MAJOR=$(sed -nE 's/CONFIG_GCC_VERSION=(.+)..../\1/p' "/boot/config-$KERNEL_VERSION")
 	echo "Any toolset was not passed. Most probably need to install gcc-toolset-${GCC_MAJOR}. Trying compile without Wall."
-	rm -rf "$MAKE_ENV_FILE"
+	rm -f "$MAKE_ENV_FILE"
 	echo "export COMPAT_OLD_GCC=y" > "$MAKE_ENV_FILE"
 }
 
