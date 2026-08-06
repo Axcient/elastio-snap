@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 # ./genconfig.sh - generate C header for setting the correct preprocessor definitions for the kernel version
-# Usage ./genconfig.sh <kernel version> <make flags>
+# before generating the headers tries to find the required gcc and generates an env file to be used got build
+# Usage ./genconfig.sh <kernel version> <env filename> <make flags>
 # The make flags are used for determining concurrency for the feature tests, it pulls out the value of the -j flag.
-# ./genconfig.sh `uname -r` "-j4", four threads for running feature tests
-# ./genconfig.sh `uname -r` "-i -j4 -d", doesn't care about other flags present
+# ./genconfig.sh `uname -r` elastio.env "-j4", four threads for running feature tests
+# ./genconfig.sh `uname -r` elastio.env "-i -j4 -d", doesn't care about other flags present
 
 SRC_DIR=$(dirname "$0")
 OUTPUT_FILE=$SRC_DIR/kernel-config.h
@@ -14,7 +15,7 @@ FEATURE_TEST_FILES="$FEATURE_TEST_DIR/*.c"
 SYMBOL_TESTS_FILE="$SRC_DIR/configure-tests/symbol-tests"
 CONFIG_TESTS_FILE="$SRC_DIR/configure-tests/config-tests"
 KERNEL_VERSION=$(uname -r)
-MAX_THREADS=$(echo "$2" | sed -E 's/.*-j\s*([0-9]+).*/\1/')
+MAX_THREADS=$(echo "$3" | sed -E 's/.*-j\s*([0-9]+).*/\1/')
 if ! [[ "$MAX_THREADS" =~ '^[0-9]+$' ]]; then # if there was no -j flag provided, default to the number of processors
 	MAX_THREADS=$(getconf _NPROCESSORS_ONLN)
 fi
@@ -23,11 +24,49 @@ if [ ! -z "$1" ]; then
 	KERNEL_VERSION="$1"
 fi
 
+MAKE_ENV_FILE=${2:-"elastio.env"}
+
+function rpm_check_compiler() {
+	local _FEATURE_TEST_FILES="$FEATURE_TEST_DIR/compiler.c"
+
+	echo "Check compiler for redhat kernel-${KERNEL_VERSION} ..."
+	rm -rf "${FEATURE_TEST_DIR}/build"
+	make -s -C $FEATURE_TEST_DIR clean KERNELVERSION=$KERNEL_VERSION
+
+	if make -C $_FEATURE_TEST_DIR TEST_NAME=compiler KERNELVERSION=$KERNEL_VERSION; then
+		echo "System compiler was passed"
+		return
+	fi
+
+	for toolset in $(ls -1 /opt/rh/gcc-toolset-*/enable); do
+		source ${toolset}
+		if make -C $FEATURE_TEST_DIR TEST_NAME=compiler KERNELVERSION=$KERNEL_VERSION; then
+			echo "Toolset ${toolset} was passed"
+			ln -sf "${toolset}" "$MAKE_ENV_FILE"
+			return
+		fi
+	done
+
+	GCC_MAJOR=$(sed -nE 's/CONFIG_GCC_VERSION=(.+)..../\1/p' "/boot/config-$KERNEL_VERSION")
+	echo "Any toolset was not passed. Most probably need to install gcc-toolset-${GCC_MAJOR}. Trying compile without Wall."
+	rm -f "$MAKE_ENV_FILE"
+	echo "export COMPAT_OLD_GCC=y" > "$MAKE_ENV_FILE"
+}
+
+# create the env file to work without errors on debian as well
+ln -sf /dev/null "$MAKE_ENV_FILE"
+
+# try to find and enable the required gcc for the build
+if [[ -f /etc/redhat-release ]]; then
+	rpm_check_compiler
+	source "$MAKE_ENV_FILE"
+fi
+
 # As a fallback mechanism, if System.map is not found, download
 # the debug linux kernel package and extract it from there
 deb_extract_system_map() {
 	LINUX_IMAGE_DBG="linux-image-$KERNEL_VERSION-dbg"
-	URL=$(sudo apt-get download --print-uris linux-image-$KERNEL_VERSION-dbg | awk -F\' {'print $2'})
+	URL=$(sudo apt-get download --print-uris linux-image-$KERNEL_VERSION-dbg | awk -F\' {'print $3'})
 	echo "Downloading $LINUX_IMAGE_DBG from $URL..."
 	if ! wget -q "$URL"; then
 		echo "Could not download $LINUX_IMAGE_DBG"
@@ -131,7 +170,7 @@ while read CONFIG_OPTION; do
 
 	echo "checking $CONFIG_OPTION"
 	MACRO_NAME="$(echo ${CONFIG_OPTION} | awk '{print toupper($0)}')"
-	CONFIG_VALUE=$(grep "${CONFIG_OPTION}" "${SYSTEM_CONFIG_FILE}" | awk -F"=" '{print $2}')
+	CONFIG_VALUE=$(grep "${CONFIG_OPTION}" "${SYSTEM_CONFIG_FILE}" | awk -F"=" '{print $3}')
 	if [ -n "$CONFIG_VALUE" ]; then
 		echo "#define $MACRO_NAME $CONFIG_VALUE" >> $OUTPUT_FILE
 	fi
