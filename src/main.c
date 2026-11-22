@@ -1659,7 +1659,7 @@ static int dentry_get_relative_pathname(struct dentry *dentry, char **buf, int *
 	while(parent->d_parent != parent){
 		len -= parent->d_name.len + 1;
 		pathname[len] = '/';
-		strncpy(&pathname[len + 1], parent->d_name.name, parent->d_name.len);
+		memcpy(&pathname[len + 1], parent->d_name.name, parent->d_name.len);
 		parent = parent->d_parent;
 	}
 
@@ -1698,7 +1698,7 @@ static int dentry_get_relative_pathname(struct dentry *dentry, char **buf, int *
 		goto error;
 	}
 
-	strncpy(final_buf, pathname, len);
+	elastio_strscpy(final_buf, pathname, len);
 	free_page((unsigned long)page_buf);
 
 	*buf = final_buf;
@@ -1743,7 +1743,7 @@ static int path_get_absolute_pathname(const struct path *path, char **buf, int *
 		goto error;
 	}
 
-	strncpy(final_buf, pathname, len);
+	elastio_strscpy(final_buf, pathname, len);
 	free_page((unsigned long)page_buf);
 
 	*buf = final_buf;
@@ -1820,9 +1820,9 @@ static int pathname_concat(const char *pathname1, const char *pathname2, char **
 	}
 	full_pathname[pathname1_len + need_leading_slash + pathname2_len] = '\0';
 
-	strncpy(full_pathname, pathname1, pathname1_len);
+	memcpy(full_pathname, pathname1, pathname1_len);
 	if(need_leading_slash) full_pathname[pathname1_len] = '/';
-	strncpy(full_pathname + pathname1_len + need_leading_slash, pathname2, pathname2_len);
+	memcpy(full_pathname + pathname1_len + need_leading_slash, pathname2, pathname2_len);
 
 	*path_out = full_pathname;
 	return 0;
