@@ -24,7 +24,7 @@ def map_deb_distro = [
 
 def shouldRunStage()
 {
-    return !(env.DISTRO == 'fedora44' && env.SKIP_REST == "true")
+    return !(env.DISTRO == 'fedora45' && env.SKIP_REST == "true")
 }
 
 def test_disks = [:]
@@ -62,11 +62,11 @@ pipeline
 					axis
 					{
 						name 'DISTRO'
-						values  'debian10', 'debian11', 'debian12', 'debian13',
+						values  'debian11', 'debian12', 'debian13',
 							'alma8', 'alma9',
-							'ubuntu1804', 'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
-							'rhel7', 'rhel8', 'rhel9', 'rhel10',
-							'fedora44'
+							'ubuntu2004', 'ubuntu2204', 'ubuntu2404',
+							'rhel8', 'rhel9', 'rhel10',
+							'fedora44', 'fedora45'
 					}
 				}
 				agent {
@@ -76,7 +76,7 @@ pipeline
 				{
 					stage('Update kernel')
 					{
-						when { expression { env.DISTRO == 'fedora44' } }
+						when { expression { env.DISTRO == 'fedora45' } }
 						steps
 						{
 							script

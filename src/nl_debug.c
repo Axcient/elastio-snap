@@ -31,7 +31,11 @@ int nl_send_event(enum nl_msg_type type, const char *func, int line, struct nl_p
 
 	if (func) {
 		msg->source.line = line;
-		strncpy(msg->source.func, func, sizeof(msg->source.func));
+#ifdef HAVE_STRSCPY
+		strscpy(msg->source.func, func, sizeof(msg->source.func));
+#else
+		strlcpy(msg->source.func, func, sizeof(msg->source.func));
+#endif
 	}
 
 	memcpy(&msg->params, params, sizeof(*params));
